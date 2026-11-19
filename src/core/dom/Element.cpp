@@ -31,6 +31,7 @@
 #include "core/dom/DOMTokenList.h"
 #include "core/dom/Element.h"
 #include "core/dom/Event.h"
+#include "core/dom/PointerEvent.h"
 #include "core/dom/HTMLDocument.h"
 #include "core/dom/MutationObserver.h"
 #include "core/dom/MutationObservationScope.h"
@@ -2957,15 +2958,39 @@ void Element::setPointerCapture(int32_t param)
     }
     BrowsingContext* bc = document()->browsingContext();
     if (bc) {
+        if (bc->pointerCaptureTarget() == this) {
+            return;
+        }
+        // Fire lostpointercapture on the previous capture target, if any, then
+        // gotpointercapture on this element (implicit release + capture, per
+        // https://w3c.github.io/pointerevents/#setting-pointer-capture).
+        Node* prev = bc->pointerCaptureTarget();
+        if (prev && prev->isElement()) {
+            PointerEvent* lost = new PointerEvent(
+                executionContext(),
+                starfish()->staticStrings()->m_lostpointercapture.localName());
+            lost->setBubbles(false);
+            prev->dispatchEvent(lost);
+        }
         bc->setPointerCaptureTarget(this);
+        PointerEvent* got = new PointerEvent(
+            executionContext(),
+            starfish()->staticStrings()->m_gotpointercapture.localName());
+        got->setBubbles(false);
+        dispatchEvent(got);
     }
 }
 
 void Element::releasePointerCapture(int32_t param)
 {
     BrowsingContext* bc = document()->browsingContext();
-    if (bc) {
+    if (bc && bc->pointerCaptureTarget() == this) {
         bc->releasePointerCaptureTarget(this);
+        PointerEvent* lost = new PointerEvent(
+            executionContext(),
+            starfish()->staticStrings()->m_lostpointercapture.localName());
+        lost->setBubbles(false);
+        dispatchEvent(lost);
     }
 }
 

@@ -67,11 +67,12 @@ interface GlobalEventHandlers {
   [STARFISH_ENABLE_MULTIMEDIA] attribute EventHandler onwaiting;
 
 // https://w3c.github.io/touch-events/#extensions-to-the-globaleventhandlers-interface
-
-  attribute EventHandler ontouchstart;
-  attribute EventHandler ontouchend;
-  attribute EventHandler ontouchmove;
-  attribute EventHandler ontouchcancel;
+// NOTE: intentionally NOT exposed. Chrome only defines the touch global event
+// handler properties on devices with touch capability; on touchless devices
+// (TV) "ontouchstart" in window must be false. Google Maps keys its entire
+// input dispatch off this check (_.$v): with ontouchstart visible it binds
+// touchmove/touchend for marker drags, which never fire from pointer-driven
+// input, leaving pointer-based UI (street view pegman drag) dead.
 
 // https://w3c.github.io/pointerevents/#dom-globaleventhandlers-onpointerdown
 

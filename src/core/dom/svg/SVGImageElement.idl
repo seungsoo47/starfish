@@ -1,6 +1,8 @@
 // https://www.w3.org/TR/SVG11/struct.html#InterfaceSVGImageElement
-// TODO implement SVGURIReference, SVGTests, SVGLangSpace, SVGExternalResourcesRequired, SVGStylable, SVGTransformable  
+// TODO implement SVGTests, SVGLangSpace, SVGExternalResourcesRequired, SVGStylable, SVGTransformable
 interface SVGImageElement : SVGElement {
+  // https://svgwg.org/svg2-draft/types.html#InterfaceSVGURIReference
+  readonly attribute SVGAnimatedString href;
   readonly attribute SVGAnimatedLength x;
   readonly attribute SVGAnimatedLength y;
   readonly attribute SVGAnimatedLength width;

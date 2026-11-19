@@ -48,9 +48,9 @@ interface Range {
     [Measure] DOMRectList getClientRects();
     [NewObject] DOMRect getBoundingClientRect();
 
-    // DOM Parsing and Serialization
-    // https://w3c.github.io/DOM-Parsing/#extensions-to-the-range-interface
-    [Unimplemented,NewObject, RaisesException, CEReactions, CustomElementCallbacks] DocumentFragment createContextualFragment(DOMString fragment);
+        // DOM Parsing and Serialization
+    // https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#the-createcontextualfragment()-method
+    [NewObject, RaisesException, CEReactions] DocumentFragment createContextualFragment(DOMString fragment);
 
     // Non-standard API
     [Unimplemented,RaisesException, DeprecateAs=RangeExpand] void expand([Default=Undefined] optional DOMString unit);

@@ -918,6 +918,16 @@ void Node::append(const GCVector<NodeOrDOMString>& nodes)
     appendChild(node);
 }
 
+// https://dom.spec.whatwg.org/#dom-parentnode-replacechildren
+void Node::replaceChildren(const GCVector<NodeOrDOMString>& nodes)
+{
+    Node* node = convertNodesIntoNode(nodes, document());
+    while (Node* child = firstChild()) {
+        removeChild(child);
+    }
+    appendChild(node);
+}
+
 Node* Node::nearestParentElement()
 {
     Node* t = this;

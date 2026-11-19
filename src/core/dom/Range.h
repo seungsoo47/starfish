@@ -121,6 +121,10 @@ public:
 
     bool intersectsNode(Node* node);
 
+    // DOM Parsing and Serialization
+    // https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#the-createcontextualfragment()-method
+    DocumentFragment* createContextualFragment(String* fragment);
+
     String* toString();
 
     Node* firstNode();

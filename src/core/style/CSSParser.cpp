@@ -1967,7 +1967,7 @@ void CSSParser::parseCompoundSelector(CSSSelectorList* selectorList)
                                             : CSSSelectorListItem::SubSelector;
         CSSSelector* selector;
         if (nsURI.hasValue()) {
-            AtomicString localName = elementName.toAttrAtomicString(starfish());
+            AtomicString localName = elementName.toAtomicString(starfish()) /* case-preserving: SVG tag names are case-sensitive */;
             QualifiedName qname =
                 explicitNamespace
                     ? QualifiedName(prefix.toAttrAtomicString(starfish()),
@@ -1979,7 +1979,7 @@ void CSSParser::parseCompoundSelector(CSSSelectorList* selectorList)
                 { isStar ? CSSSelector::Type::Universal
                          : CSSSelector::Type::Tag,
                   CSSSelector::PseudoNone, CSSSelector::CaseInsensitive,
-                  elementName.toAttrAtomicString(starfish()) });
+                  elementName.toAtomicString(starfish()) /* case-preserving: SVG tag names are case-sensitive */ });
         }
 
         selectorList->insert(selectorList->begin(),

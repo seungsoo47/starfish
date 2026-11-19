@@ -1175,6 +1175,10 @@ static TouchEvent* createTouchEvent(Document* document, String* name,
     TouchEvent* event = new TouchEvent(document, name, touches, count);
     event->setBubbles(true);
     event->setCancelable(true);
+    // UI Events: TouchEvent (like MouseEvent) is a composed event, so it
+    // bubbles across shadow-host boundaries -- required for shadow-DOM-based
+    // widgets (e.g. Google Maps' slotted marker views) to receive input.
+    event->setComposed(true);
     event->setView(document->window());
     return event;
 }
@@ -1186,6 +1190,8 @@ static MouseEvent* createMouseEvent(Document* document, String* name,
         new MouseEvent(document->executionContext(), name, data);
     event->setBubbles(true);
     event->setCancelable(true);
+    // UI Events: MouseEvent is a composed event.
+    event->setComposed(true);
     event->setView(document->window());
     return event;
 }
@@ -1197,6 +1203,11 @@ static PointerEvent* createPointerEvent(Document* document, String* name,
         new PointerEvent(document->executionContext(), name, data, pointerType);
     event->setBubbles(true);
     event->setCancelable(true);
+    // UI Events: PointerEvent is a composed event. Without this, trusted
+    // pointer events never propagate past a shadow host, so listeners
+    // registered on shadow hosts (Google Maps' advanced-marker drag manager)
+    // never fire and pointer-driven UI (pegman drag) stays dead.
+    event->setComposed(true);
     event->setView(document->window());
     return event;
 }
@@ -1695,8 +1706,19 @@ bool BrowsingContext::dispatchTouchEvent(TouchEventKind kind,
             document(), starfish()->staticStrings()->m_pointerup.localName(),
             pointerData, starfish()->staticStrings()->m_pointerTypeTouch);
         document()->window()->dispatchEventByUA(pt, pe);
-        // Implicit pointer capture release on pointerup.
-        m_pointerCaptureTarget = nullptr;
+        // Implicit pointer capture release on pointerup: fire
+        // lostpointercapture on the capture target first, then clear.
+        if (m_pointerCaptureTarget) {
+            Node* pt = m_pointerCaptureTarget;
+            m_pointerCaptureTarget = nullptr;
+            if (pt->isElement()) {
+                PointerEvent* lost = new PointerEvent(
+                    document()->executionContext(),
+                    starfish()->staticStrings()->m_lostpointercapture.localName());
+                lost->setBubbles(false);
+                pt->asElement()->dispatchEvent(lost);
+            }
+        }
         if (clickableEvent) {
             if (webView()->linkEffectEnabled() &&
                 isTapSoundFeedbackTarget(starfish(), t)) {
@@ -1974,8 +1996,19 @@ bool BrowsingContext::dispatchMouseEvent(MouseEventKind kind, MouseData data)
             upData, starfish()->staticStrings()->m_pointerTypeMouse);
         document()->window()->dispatchEventByUA(t, pe);
 
-        // Implicit pointer capture release on pointerup.
-        m_pointerCaptureTarget = nullptr;
+        // Implicit pointer capture release on pointerup: fire
+        // lostpointercapture on the capture target first, then clear.
+        if (m_pointerCaptureTarget) {
+            Node* pt = m_pointerCaptureTarget;
+            m_pointerCaptureTarget = nullptr;
+            if (pt->isElement()) {
+                PointerEvent* lost = new PointerEvent(
+                    document()->executionContext(),
+                    starfish()->staticStrings()->m_lostpointercapture.localName());
+                lost->setBubbles(false);
+                pt->asElement()->dispatchEvent(lost);
+            }
+        }
 
         if (clickableEvent) {
             if (webView()->linkEffectEnabled() &&

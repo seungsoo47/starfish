@@ -21,6 +21,7 @@
 #include "Starfish.h"
 #include "core/dom/Document.h"
 #include "core/dom/ShadowRoot.h"
+#include "core/dom/svg/SVGAnimatedString.h"
 #include "core/dom/svg/SVGUseElement.h"
 
 namespace Starfish {
@@ -34,6 +35,7 @@ void* SVGUseElement::operator new(size_t size)
         GC_word desc[GC_BITMAP_SIZE(SVGUseElement)] = { 0 };
         SVGElement::fillGCDescriptor(desc);
         GC_set_bit(desc, GC_WORD_OFFSET(SVGUseElement, m_href));
+        GC_set_bit(desc, GC_WORD_OFFSET(SVGUseElement, m_hrefObject));
         GC_set_bit(desc, GC_WORD_OFFSET(SVGUseElement, m_target));
         descr = GC_make_descriptor(desc, GC_WORD_LEN(SVGUseElement));
         typeInited = true;
@@ -44,7 +46,18 @@ void* SVGUseElement::operator new(size_t size)
 SVGUseElement::SVGUseElement(Document* document, const QualifiedName& qname)
     : SVGElement(document, qname)
     , m_href(String::emptyString)
+    , m_hrefObject(nullptr)
 {
+}
+
+// https://svgwg.org/svg2-draft/types.html#InterfaceSVGURIReference
+SVGAnimatedString* SVGUseElement::href()
+{
+    if (!m_hrefObject) {
+        StaticStrings* ss = starfish()->staticStrings();
+        m_hrefObject = new SVGAnimatedString(this, ss->m_href, m_href, m_href);
+    }
+    return m_hrefObject;
 }
 
 void SVGUseElement::didAttributeChanged(QualifiedName name,

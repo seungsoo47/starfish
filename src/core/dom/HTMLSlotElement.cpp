@@ -20,7 +20,10 @@
 #include "StarfishConfig.h"
 #include "Starfish.h"
 #include "core/dom/Document.h"
+#include "binding/generated/ElementOrTextUnion.h"
+#include "core/dom/DOMException.h"
 #include "core/dom/HTMLSlotElement.h"
+#include "core/dom/Text.h"
 #include "core/dom/ShadowRoot.h"
 
 namespace Starfish {
@@ -55,6 +58,101 @@ void HTMLSlotElement::clearAssignedNodes()
         n->setIsSlotted(false);
     }
     m_assignedNodes.clear();
+}
+
+// https://html.spec.whatwg.org/multipage/scripting.html#dom-slot-assign
+// Manual slot assignment (slotAssignment="manual"): the given slottables
+// become this slot's assigned nodes regardless of their slot= attribute or
+// this slot's position among same-named slots. Google Maps' advanced-marker
+// views rely on this to distribute their content element into the marker's
+// shadow tree.
+void HTMLSlotElement::assign(const GCVector<ElementOrText>& nodes)
+{
+    // 1. If any of nodes is the slot itself, throw a TypeError.
+    for (auto& n : nodes) {
+        Node* slottable = n.isElementValue()
+                              ? static_cast<Node*>(n.getElementValue())
+                              : static_cast<Node*>(n.getTextValue());
+        if (slottable == this) {
+            throw new DOMException(
+                document()->executionContext(), DOMException::SCRIPT_TYPE_ERR,
+                "Failed to execute 'assign' on 'HTMLSlotElement': Cannot "
+                "assign a slot to itself.");
+        }
+    }
+
+    // 2. Assign slottables. Snapshot the old assignment first so slotchange
+    // fires only when the list actually changes (WHATWG DOM).
+    GCVector<Node*> oldNodes = m_assignedNodes;
+
+    clearAssignedNodes();
+    for (auto* n : oldNodes) {
+        // A formerly-assigned node keeps a stale cached style for its old
+        // flat-tree position; drop it so recalc rebuilds it unslotted.
+        n->clearCachedStyleRecursively();
+    }
+
+    for (auto& n : nodes) {
+        Node* slottable = n.isElementValue()
+                              ? static_cast<Node*>(n.getElementValue())
+                              : static_cast<Node*>(n.getTextValue());
+        m_assignedNodes.push_back(slottable);
+        slottable->setIsSlotted(true);
+    }
+
+    bool changed = oldNodes.size() != m_assignedNodes.size();
+    for (size_t i = 0; !changed && i < oldNodes.size(); i++) {
+        if (oldNodes[i] != m_assignedNodes[i]) {
+            changed = true;
+        }
+    }
+    if (!changed) {
+        return;
+    }
+
+    document()->signalSlotChange(this);
+
+    // Fallback-content bookkeeping, mirroring ShadowRoot::
+    // connectSlotWithSlottables(): the flat-tree children of a slot with
+    // assigned nodes are those nodes (fallback not visited), and become the
+    // slot's own children only when the assignment empties.
+    if (m_assignedNodes.empty()) {
+        for (Node* child = firstChild(); child; child = child->nextSibling()) {
+            child->setNeedsStyleRecalc();
+        }
+    } else if (oldNodes.empty()) {
+        for (Node* child = firstChild(); child; child = child->nextSibling()) {
+            child->clearCachedStyleRecursively();
+        }
+    }
+
+    // Assigned nodes keep their frames across (re)assignment, so a style
+    // recalc alone would not move their boxes; rebuild the frame tree from
+    // the slot so the new assignment is collected.
+    setNeedsFrameTreeBuild();
+
+    // Mark nodes that entered/left the assignment dirty: a newly assigned
+    // node may now be reached by ::slotted() rules, and a node that lost its
+    // assignment needs the "child needs recalc" bit propagated up through
+    // the host for the top-down style-recalc walk to revisit this tree.
+    auto contains = [](const GCVector<Node*>& list, Node* node) -> bool {
+        for (auto* n : list) {
+            if (n == node) {
+                return true;
+            }
+        }
+        return false;
+    };
+    for (auto* n : oldNodes) {
+        if (!contains(m_assignedNodes, n)) {
+            n->setNeedsStyleRecalc();
+        }
+    }
+    for (auto* n : m_assignedNodes) {
+        if (!contains(oldNodes, n)) {
+            n->setNeedsStyleRecalc();
+        }
+    }
 }
 
 void HTMLSlotElement::didAttributeChanged(QualifiedName name,

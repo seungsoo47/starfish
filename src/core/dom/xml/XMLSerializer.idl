@@ -1,0 +1,8 @@
+// https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#the-xmlserializer-interface
+
+[
+  Constructor,
+  ConstructorCallWith=Document
+] interface XMLSerializer {
+  [RaisesException] DOMString serializeToString(Node root);
+};

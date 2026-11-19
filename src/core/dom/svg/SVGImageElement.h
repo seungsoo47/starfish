@@ -77,6 +77,9 @@ public:
     STARFISH_SVG_ANIMATED_LENGTH_GETTER(width);
     STARFISH_SVG_ANIMATED_LENGTH_GETTER(height);
 
+    // https://svgwg.org/svg2-draft/types.html#InterfaceSVGURIReference
+    SVGAnimatedString* href();
+
     NativeImageData* imageData()
     {
         return m_imageData;
@@ -111,6 +114,8 @@ protected:
     Optional<SVGAnimatedLength*> m_y;
     Optional<SVGAnimatedLength*> m_width;
     Optional<SVGAnimatedLength*> m_height;
+    String* m_href;
+    SVGAnimatedString* m_hrefObject;
 };
 } // namespace Starfish
 

@@ -724,6 +724,8 @@ public:
     unsigned long childElementCount();
     void prepend(const GCVector<NodeOrDOMString>& nodes);
     void append(const GCVector<NodeOrDOMString>& nodes);
+    // https://dom.spec.whatwg.org/#dom-parentnode-replacechildren
+    void replaceChildren(const GCVector<NodeOrDOMString>& nodes);
 
     HTMLCollection* children();
     DOMTokenList* classList();

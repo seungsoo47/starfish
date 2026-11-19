@@ -20,6 +20,7 @@
 #include "StarfishConfig.h"
 #include "Starfish.h"
 #include "core/dom/svg/SVGDocument.h"
+#include "core/dom/svg/SVGAnimatedString.h"
 #include "core/dom/svg/SVGImageElement.h"
 #include "core/modules/message_loop/MessageLoop.h"
 #include "platform/loader/ElementResourceClient.h"
@@ -40,6 +41,8 @@ void* SVGImageElement::operator new(size_t size)
         GC_set_bit(desc, GC_WORD_OFFSET(SVGImageElement, m_y));
         GC_set_bit(desc, GC_WORD_OFFSET(SVGImageElement, m_width));
         GC_set_bit(desc, GC_WORD_OFFSET(SVGImageElement, m_height));
+        GC_set_bit(desc, GC_WORD_OFFSET(SVGImageElement, m_href));
+        GC_set_bit(desc, GC_WORD_OFFSET(SVGImageElement, m_hrefObject));
         SVGElement::fillGCDescriptor(desc);
         descr = GC_make_descriptor(desc, GC_WORD_LEN(SVGImageElement));
         typeInited = true;
@@ -90,7 +93,19 @@ SVGImageElement::SVGImageElement(Document* document, const QualifiedName& qname)
     , m_imageResource(nullptr)
     , m_imageData(nullptr)
     , m_requestErrorType(RequestErrorType::NoError)
+    , m_href(String::emptyString)
+    , m_hrefObject(nullptr)
 {
+}
+
+// https://svgwg.org/svg2-draft/types.html#InterfaceSVGURIReference
+SVGAnimatedString* SVGImageElement::href()
+{
+    if (!m_hrefObject) {
+        StaticStrings* ss = starfish()->staticStrings();
+        m_hrefObject = new SVGAnimatedString(this, ss->m_href, m_href, m_href);
+    }
+    return m_hrefObject;
 }
 
 void SVGImageElement::unloadImage()
@@ -160,6 +175,7 @@ void SVGImageElement::didAttributeChanged(QualifiedName name,
         (!name.hasPrefix() &&
          ss->m_xlinkHref.hasSameNamespaceURI(name.namespaceURI()) &&
          ss->m_xlinkHref.hasSameLocalName(name.localName()))) {
+        m_href = attributeRemoved ? String::emptyString : value;
         if (attributeRemoved) {
             unloadImage();
         } else {

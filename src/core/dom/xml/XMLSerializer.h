@@ -20,12 +20,26 @@
 #ifndef __StarfishXMLSerializer__
 #define __StarfishXMLSerializer__
 
+#include "binding/DocumentHoldable.h"
+#include "binding/ScriptWrappable.h"
+
 namespace Starfish {
 
-class Element;
+class Node;
 
-class XMLSerializer : public gc {
+// https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#the-xmlserializer-interface
+class XMLSerializer : public ScriptWrappable, public DocumentHoldable {
 public:
+    XMLSerializer(Document* document);
+
+    virtual void init(ScriptBindingInstance* instance,
+                      void* domObjectPointer) override;
+    virtual bool isXMLSerializer() const override;
+    virtual ScriptBindingInstance* scriptBindingInstance() override;
+
+    // https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#dom-xmlserializer-serializetostring
+    String* serializeToString(Node* root);
+
     static String* serializeToXML(Node* e, bool includeSelf);
 };
 } // namespace Starfish

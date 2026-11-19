@@ -25,6 +25,7 @@
 namespace Starfish {
 
 class ShadowRoot;
+class ElementOrText;
 
 struct AssignedNodesOptions {
     AssignedNodesOptions()
@@ -96,6 +97,11 @@ public:
     // Drops all assigned slottables and marks them unslotted. Shared by the
     // shadow-tree slot-assignment paths that rebuild or detach assignments.
     void clearAssignedNodes();
+
+    // https://html.spec.whatwg.org/multipage/scripting.html#dom-slot-assign
+    // Manual slot assignment (slotAssignment="manual"): the given slottables
+    // become this slot's assigned nodes regardless of their slot= attribute.
+    void assign(const GCVector<ElementOrText>& nodes);
 
     GCVector<Node*> assignedNodes(
         Optional<AssignedNodesOptions> options = nullptr);

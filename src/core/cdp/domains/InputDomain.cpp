@@ -101,11 +101,25 @@ void InputDomain::processMessage(CDPCommand& cmd, const std::string& method)
         double y = paramNumber(cmd, "y", 0);
         std::string button = paramString(cmd, "button");
         int clickCount = (int)paramNumber(cmd, "clickCount", 0);
+        // CDP: "buttons" is a bitmask of currently-pressed buttons, sent on
+        // every event type (notably mouseMoved during a drag, where "button"
+        // is absent). Fall back to the "button" string when it is missing.
+        int buttonsMask = (int)paramNumber(cmd, "buttons", -1);
+        MouseButtonsValue mask = cdpButtonsMask(button);
+        if (buttonsMask > 0) {
+            int combined = buttonsMask;
+            if (cdpButton(button) == MouseButtonValue::LeftButton)
+                combined |= 1;
+            else if (cdpButton(button) == MouseButtonValue::RightButton)
+                combined |= 2;
+            else if (cdpButton(button) == MouseButtonValue::MiddleButton)
+                combined |= 4;
+            mask = (MouseButtonsValue)combined;
+        }
 
         if (type == "mousePressed") {
             wv->dispatchMouseEvent(MouseEventKind::MouseEventDown,
-                                   MouseData(cdpButton(button),
-                                             cdpButtonsMask(button), x, y,
+                                   MouseData(cdpButton(button), mask, x, y,
                                              clickCount > 0 ? clickCount : 1));
             cmd.sendResultEmpty();
             return;
@@ -120,8 +134,8 @@ void InputDomain::processMessage(CDPCommand& cmd, const std::string& method)
         }
         if (type == "mouseMoved") {
             wv->dispatchMouseEvent(MouseEventKind::MouseEventMove,
-                                   MouseData(MouseButtonValue::NoButton,
-                                             cdpButtonsMask(button), x, y, 0));
+                                   MouseData(MouseButtonValue::NoButton, mask,
+                                             x, y, 0));
             cmd.sendResultEmpty();
             return;
         }

@@ -24,6 +24,8 @@
 #include "core/dom/DOMQuad.h"
 #include "core/dom/DOMRect.h"
 #include "core/dom/DOMRectList.h"
+#include "core/dom/HTMLBodyElement.h"
+#include "core/dom/parser/HTMLParser.h"
 #include "core/dom/Range.h"
 #include "core/dom/Text.h"
 #include "core/dom/Traverse.h"
@@ -561,6 +563,34 @@ bool Range::intersectsNode(Node* node)
         return true;
     }
     return false;
+}
+
+// https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#the-createcontextualfragment()-method
+DocumentFragment* Range::createContextualFragment(String* fragment)
+{
+    // Let element be null. If node implements Element, set element to node.
+    // Otherwise, if node implements Text or Comment, set element to node's
+    // parent element.
+    Node* node = m_start.m_node;
+    Element* element = nullptr;
+    if (node->isElement()) {
+        element = node->asElement();
+    } else if (node->isText() || node->isComment()) {
+        element = node->parentElement();
+    }
+    // If element is null, or it is the <html> element of an HTML document,
+    // parse in a fresh <body> context instead: the HTML fragment parsing
+    // algorithm cannot use <html> as its context element.
+    if (element == nullptr ||
+        (element->document()->isHTMLDocument() &&
+         element->localName()->equals("html") &&
+         element->name().hasSameNamespaceURI(HTML_NAMESPACE))) {
+    element = new HTMLBodyElement(
+        m_document, m_document->starfish()->staticStrings()->m_bodyTagName);
+    }
+    // Return the result of invoking the fragment parsing algorithm with
+    // element and the given markup.
+    return fragmentParsingAlgorithm(m_document, fragment, element);
 }
 
 String* Range::toString()

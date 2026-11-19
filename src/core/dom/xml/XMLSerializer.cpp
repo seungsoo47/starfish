@@ -30,6 +30,22 @@
 
 namespace Starfish {
 
+XMLSerializer::XMLSerializer(Document* document)
+    : ScriptWrappable(this)
+    , DocumentHoldable(document)
+{
+}
+
+ScriptBindingInstance* XMLSerializer::scriptBindingInstance()
+{
+    return document()->scriptBindingInstance();
+}
+
+String* XMLSerializer::serializeToString(Node* root)
+{
+    return serializeToXML(root, true);
+}
+
 static bool isSelfClosingTag(char* str)
 {
     // https://www.w3.org/TR/html5/syntax.html#void-elements

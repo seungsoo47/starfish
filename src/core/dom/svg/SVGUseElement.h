@@ -53,6 +53,9 @@ public:
 
     Optional<SVGElement*> updateShadowTree();
 
+    // https://svgwg.org/svg2-draft/types.html#InterfaceSVGURIReference
+    SVGAnimatedString* href();
+
     Optional<SVGElement*> target() const
     {
         return m_target;
@@ -60,6 +63,7 @@ public:
 
 private:
     String* m_href;
+    SVGAnimatedString* m_hrefObject;
     Optional<SVGElement*> m_target;
 };
 } // namespace Starfish
