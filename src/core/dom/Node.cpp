@@ -568,6 +568,32 @@ Optional<HTMLSlotElement*> Node::assignedSlotInternal() const
     if (slot.hasValue() && slot.value()) {
         return slot.value();
     }
+
+    // Manual slot assignment: "find a slot" returns the slot this slottable
+    // was manually assigned to (https://html.spec.whatwg.org/multipage/
+    // scripting.html#find-a-slot with slotAssignment="manual"), regardless
+    // of its slot= attribute. The slot only counts while it still hangs off
+    // this host's shadow tree; assignment bookkeeping in
+    // ShadowRoot::connectSlotWithSlottables() keeps the list to host children.
+    // Without this lookup a manually assigned node's flat-tree parent would
+    // resolve back to its DOM parent (the host), and nothing would ever
+    // descend into it to recalc style or build frames.
+    if (sr.value()->slotAssignmentEnum() == SlotAssignmentMode::Manual) {
+        auto iter = window()->starfish()->manualSlotAssignments().find(
+            const_cast<Node*>(this));
+        if (iter != window()->starfish()->manualSlotAssignments().end()) {
+            HTMLSlotElement* manualSlot = iter->second;
+            for (Node* p = manualSlot->parentNode(); p; p = p->parentNode()) {
+                if (p->isShadowRoot()) {
+                    if (p == sr.value()) {
+                        return manualSlot;
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
     return NullOption;
 }
 

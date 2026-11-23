@@ -123,9 +123,17 @@ private:
     {
         HTMLElement::fillGCDescriptor(desc);
         GC_set_bit(desc, GC_WORD_OFFSET(HTMLSlotElement, m_assignedNodes));
+        GC_set_bit(desc,
+                   GC_WORD_OFFSET(HTMLSlotElement, m_manuallyAssignedNodes));
     }
 
     GCVector<Node*> m_assignedNodes;
+
+    // Slottables given to assign(), in the order last assigned. The
+    // back reference each node keeps (starfish()->manualSlotAssignments())
+    // is the ground truth for re-assignment; this list survives the slot
+    // leaving its shadow tree so re-insertion restores the assignment.
+    GCVector<Node*> m_manuallyAssignedNodes;
 };
 } // namespace Starfish
 

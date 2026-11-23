@@ -34,7 +34,7 @@ http://web-platform.test:8000/shadow-dom/historical.html
 http://web-platform.test:8000/shadow-dom/HTMLSlotElement-interface.html
 # [auto-fail] http://web-platform.test:8000/shadow-dom/imperative-slot-api.html
 # [auto-fail] http://web-platform.test:8000/shadow-dom/imperative-slot-api-slotchange.html
-# [auto-fail] http://web-platform.test:8000/shadow-dom/imperative-slot-fallback-clear.html
+http://web-platform.test:8000/shadow-dom/imperative-slot-fallback-clear.html
 http://web-platform.test:8000/shadow-dom/imperative-slot-initial-fallback.html
 # [auto-fail] http://web-platform.test:8000/shadow-dom/input-element-list.html
 # [auto-fail] http://web-platform.test:8000/shadow-dom/input-type-radio.html

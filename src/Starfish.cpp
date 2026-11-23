@@ -119,6 +119,7 @@ void* Starfish::operator new(size_t size)
         markHashTable(desc, GC_WORD_OFFSET(Starfish, m_rootMap));
         markHashTable(desc, GC_WORD_OFFSET(Starfish, m_atomicStringMap));
         markHashTable(desc, GC_WORD_OFFSET(Starfish, m_caseInsensitiveAttrSet));
+        GC_set_bit(desc, GC_WORD_OFFSET(Starfish, m_manualSlotAssignments));
 
 #if defined(STARFISH_ENABLE_HTTPCACHE)
         GC_set_bit(desc, GC_WORD_OFFSET(Starfish, m_httpCache));
@@ -131,6 +132,16 @@ void* Starfish::operator new(size_t size)
         typeInited = true;
     }
     return GC_MALLOC_EXPLICITLY_TYPED(size, descr);
+}
+
+GCUnorderedMap<Node*, HTMLSlotElement*>& Starfish::manualSlotAssignments()
+{
+    // Allocated on first assign() so pages that never use manual slot
+    // assignment pay neither the allocation nor the GC scan cost.
+    if (!m_manualSlotAssignments) {
+        m_manualSlotAssignments = new GCUnorderedMap<Node*, HTMLSlotElement*>();
+    }
+    return *m_manualSlotAssignments;
 }
 
 void Starfish::destroy()
