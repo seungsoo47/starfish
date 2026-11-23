@@ -585,8 +585,8 @@ DocumentFragment* Range::createContextualFragment(String* fragment)
         (element->document()->isHTMLDocument() &&
          element->localName()->equals("html") &&
          element->name().hasSameNamespaceURI(HTML_NAMESPACE))) {
-    element = new HTMLBodyElement(
-        m_document, m_document->starfish()->staticStrings()->m_bodyTagName);
+        element = new HTMLBodyElement(
+            m_document, m_document->starfish()->staticStrings()->m_bodyTagName);
     }
     // Return the result of invoking the fragment parsing algorithm with
     // element and the given markup.

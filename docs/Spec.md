@@ -219,7 +219,7 @@ The HTML parser and DOM expose the following tags as well; they were missing fro
 |  [map](https://html.spec.whatwg.org/multipage/image-maps.html#the-map-element) | name | &lt;string&gt; | Maps to HTMLMapElement; image-map hit-testing is layout-only. |
 |  [area](https://html.spec.whatwg.org/multipage/image-maps.html#the-area-element) | href, alt, coords, shape | | Maps to HTMLAreaElement; companion to `<map>`. |
 |  [template](https://html.spec.whatwg.org/multipage/scripting.html#the-template-element) | shadowRootMode | "open" \| "closed" | Maps to HTMLTemplateElement. The `content` DocumentFragment is exposed; element does not render its children. `shadowRootMode` enables Declarative Shadow DOM (attach a shadow root from HTML). **`shadowRootDelegatesFocus`, `shadowRootClonable`, `shadowRootSerializable` are `[Unimplemented]`**. |
-|  [slot](https://html.spec.whatwg.org/multipage/scripting.html#the-slot-element) | name | &lt;string&gt; | Maps to HTMLSlotElement. Slotting works inside a shadow tree: `assignedNodes()`/`assignedElements()` (with `{flatten}`), fallback content, slot reassignment, and the `slotchange` event are implemented. |
+|  [slot](https://html.spec.whatwg.org/multipage/scripting.html#the-slot-element) | name | &lt;string&gt; | Maps to HTMLSlotElement. Slotting works inside a shadow tree: `assignedNodes()`/`assignedElements()` (with `{flatten}`), fallback content, slot reassignment, and the `slotchange` event are implemented. Manual slot assignment — `attachShadow({slotAssignment: 'manual'})` plus `slot.assign(...)` — is implemented. |
 |  [track](https://html.spec.whatwg.org/multipage/media.html#the-track-element) | kind, src, srclang, label, default |  | Maps to HTMLTrackElement. **Build flag:** `STARFISH_ENABLE_MULTIMEDIA`. |
 
 > **Tags accepted but exposed as generic `HTMLElement` (no element-specific DOM API):** `center`, `i`, `s`, `dfn`, `b`, `u`, `mark`, `strong`, `cite`, `em`, `var`, `address`, `article`, `aside`, `footer`, `header`, `hgroup`, `main`, `nav`, `section`, `summary`, `code`, `dt`, `dd`. The `summary` element uses `HTMLElement` as specified, with native disclosure activation. Any other custom or HTML5 tag the parser doesn't recognize (`figure`, `time`, `picture`, `kbd`, `small`, `wbr`, `ruby`, …) becomes `HTMLUnknownElement` — they parse and lay out as inline boxes but expose no element-specific DOM members.
@@ -258,7 +258,7 @@ section are supported.
 
 > **Observers deliver callbacks.** `MutationObserver`/`MutationRecord`, `IntersectionObserver`/`IntersectionObserverEntry`, and `ResizeObserver`/`ResizeObserverEntry`/`ResizeObserverSize` are implemented, not stubs — the observation logic is wired up and invokes the JS callback (`MutationObserver::notify`, `ResizeObserver::notify`, `IntersectionObserverCallback`).
 >
-> **Shadow DOM and Custom Elements are implemented.** `Element.attachShadow()`, `ShadowRoot`, `Slottable.assignedSlot`, and `HTMLSlotElement.assignedNodes()`/`assignedElements()` work, including slot assignment, the `slotchange` event, and spec event retargeting across shadow boundaries (`EventTarget.cpp` `retarget()`). `CustomElementRegistry` implements `define()`, `get()`, `getName()`, `whenDefined()`, and `upgrade()`. A shadow tree can be built imperatively (`createElement` + `appendChild`), from markup (`ShadowRoot.innerHTML`), or styled through `adoptedStyleSheets`. See the rows below, and the [Selectors](#selectors) section for `:host`/`::slotted`.
+> **Shadow DOM and Custom Elements are implemented.** `Element.attachShadow()`, `ShadowRoot`, `Slottable.assignedSlot`, and `HTMLSlotElement.assignedNodes()`/`assignedElements()` work, including slot assignment, the `slotchange` event, and spec event retargeting across shadow boundaries (`EventTarget.cpp` `retarget()`). Manual slot assignment works too: `attachShadow({slotAssignment: 'manual'})` with `HTMLSlotElement.assign(...)`. `CustomElementRegistry` implements `define()`, `get()`, `getName()`, `whenDefined()`, and `upgrade()`. A shadow tree can be built imperatively (`createElement` + `appendChild`), from markup (`ShadowRoot.innerHTML`), or styled through `adoptedStyleSheets`. See the rows below, and the [Selectors](#selectors) section for `:host`/`::slotted`.
 >
 > **`PerformanceObserver` is not exposed at all** — it has no `.idl` file, so the constructor is `undefined`. There is no entry-buffer observation API; poll `performance.getEntries()` instead.
 >
@@ -561,6 +561,9 @@ section are supported.
 |  | constructor | DOMParser() | Create a new DOMParser |
 |  | enum | SupportedType | "text/html", "text/xml", "application/xml", "application/xhtml+xml", "image/svg+xml" |
 |  | method | Document parseFromString(DOMString str, SupportedType type) | Parse str using a parser that matches type's supported MIME types. |
+| [XMLSerializer](https://html.spec.whatwg.org/multipage/dynamic-markup-insertion.html#the-xmlserializer-interface) | interface | XMLSerializer | Serializes a DOM subtree into an XML string. |
+|  | constructor | XMLSerializer() | Create a new XMLSerializer |
+|  | method | DOMString serializeToString(Node root) | Returns the serialization of root and its descendants as an XML string. |
 | [DOMPoint](https://drafts.fxtf.org/geometry/#DOMPoint) | interface | DOMPoint |  |
 |  | constructor | DOMPoint(optional unrestricted double x = 0, optional unrestricted double y = 0, optional unrestricted double z = 0, optional unrestricted double w = 1) | Creates a new DOMPoint object. |
 |  | attribute | x | Return the x coordinate value of the object it was invoked on. |
@@ -1193,7 +1196,7 @@ section are supported.
 |  | method | void append((Node or DOMString)... nodes) | Inserts nodes after the last child of node, while replacing strings in nodes with equivalent Text nodes. |
 |  | method | Element? querySelector(DOMString selectors) | Returns the first Element with the current element as root that matches the specified group of selectors. |
 |  | method | NodeList querySelectorAll(DOMString selectors) | Returns a NodeList representing a list of elements with the current element as root that matches the specified group of selectors. |
-|  | misc | replaceChildren | **Not implemented** in LWE. Calling `el.replaceChildren(...)` raises `TypeError`. Use `el.innerHTML = ''` followed by `append(...)` instead. |
+|  | method | void replaceChildren((Node or DOMString)... nodes) | Replaces the node's children with the given nodes, inserting strings as equivalent Text nodes. |
 | [Slottable](https://dom.spec.whatwg.org/#slotable) | interface | Slottable | Mixin implemented by `Element` and `Text`. |
 |  | attribute | assignedSlot | Returns the assigned `<slot>` element, or `null`. |
 | [ElementAnimation](https://www.w3.org/TR/web-animations-1/#extensions-to-the-element-interface) | interface | ElementAnimation | Mixin on `Element`. |
@@ -1212,7 +1215,8 @@ section are supported.
 |  | method | setStart / setEnd / setStartBefore / setStartAfter / setEndBefore / setEndAfter / collapse / selectNode / selectNodeContents / compareBoundaryPoints / isPointInRange / comparePoint / intersectsNode / deleteContents / extractContents / insertNode / surroundContents / cloneRange / detach | Standard `Range` operations — all implemented. |
 |  | method | DOMRectList getClientRects() / DOMRect getBoundingClientRect() | (CSSOM-View) Per-fragment client rects. |
 |  | stringifier |  | Returns the textual content of the range. |
-|  | misc | **Not implemented** | `cloneContents`, `createContextualFragment`, `expand` are `[Unimplemented]` and raise `TypeError` on call. |
+|  | method | DocumentFragment createContextualFragment(DOMString fragment) | (DOM Parsing and Serialization) Runs the HTML fragment parsing algorithm with the range's start node (its parent element for Text/Comment) as the context element — a fresh `<body>` context when that would be `<html>` — and returns the resulting DocumentFragment. |
+|  | misc | **Not implemented** | `cloneContents` and `expand` are `[Unimplemented]` and raise `TypeError` on call. |
 | [NodeIterator](https://dom.spec.whatwg.org/#interface-nodeiterator) | interface | NodeIterator | **Use `TreeWalker` instead.** The interface and `createNodeIterator` factory are exposed and configuration attributes (`root`, `referenceNode`, `pointerBeforeReferenceNode`, `whatToShow`, `filter`) report correct values, but `nextNode()` returns null immediately on the first call. Iteration is not actually wired up. |
 | [TreeWalker](https://dom.spec.whatwg.org/#interface-treewalker) | interface | TreeWalker | Created via `document.createTreeWalker(root, whatToShow=SHOW_ALL, filter=null)`. Fully functional — supports custom `acceptNode` filter callbacks (callable or `{acceptNode}` object). |
 |  | attribute | root / whatToShow / filter / currentNode | Configuration; `currentNode` is writable. |
@@ -1492,10 +1496,7 @@ supported.
 | | attribute | onpointermove | Fired when a pointer changes coordinates. |
 | | attribute | onpointerup | Fired when a pointer is no longer active. |
 | | attribute | onscroll | Fired when the document view or an element has scrolled. |
-| | attribute | ontouchstart | Fired when a touch point is placed on the touch surface. |
-| | attribute | ontouchend | Fired when a touch point is removed from the touch surface. |
-| | attribute | ontouchmove | Fired when a touch point is moved along the touch surface. |
-| | attribute | ontouchcancel | Fired when a touch point has been disrupted. |
+| | misc | ontouchstart / ontouchend / ontouchmove / ontouchcancel | Intentionally **not exposed** as IDL handler properties on GlobalEventHandlers: Chrome only defines the touch global event handlers on touch-capable devices, so on a touchless (TV) device `"ontouchstart" in window` must be false. The HTML content attributes (`ontouchstart="…"`) and `addEventListener("touchstart"/"touchend"/"touchmove"/"touchcancel", …)` still work. |
 | | attribute | onsubmit | Fired at a `<form>` when it is submitted. |
 | | attribute | onpause | Fired when the element has been paused. |
 | | attribute | onplay | Fired when the element is no longer paused. Fired after the play() method has returned, or when the autoplay attribute has caused playback to begin. |
@@ -2161,7 +2162,7 @@ C++ class and a corresponding `FrameSVG*Box` layout box. Please see
 | [svg](https://www.w3.org/TR/SVG2/struct.html#NewDocument) | Root element. Supports `width`, `height`, `viewBox`, `preserveAspectRatio`. Nested `<svg>` creates a new viewport context. |
 | [g](https://www.w3.org/TR/SVG2/struct.html#Groups) | Grouping element. |
 | [defs](https://www.w3.org/TR/SVG2/struct.html#Head) | Non-rendered container for reusable definitions. |
-| [use](https://www.w3.org/TR/SVG2/struct.html#UseElement) | Clones a referenced element via `href`/`xlink:href`. Resolved through an internal shadow root. |
+| [use](https://www.w3.org/TR/SVG2/struct.html#UseElement) | Clones a referenced element via `href`/`xlink:href`. Resolved through an internal shadow root. Exposes `href` (SVGAnimatedString, SVG2). |
 | [symbol](https://www.w3.org/TR/SVG2/struct.html#SymbolElement) | Defines a reusable graphic, instantiated by `<use>`. |
 | [switch](https://www.w3.org/TR/SVG2/struct.html#SwitchElement) | Conditional rendering of child elements. |
 | [rect](https://www.w3.org/TR/SVG2/shapes.html#RectElement) | Supports `x`, `y`, `width`, `height`, `rx`, `ry`. |
@@ -2171,7 +2172,7 @@ C++ class and a corresponding `FrameSVG*Box` layout box. Please see
 | [polyline](https://www.w3.org/TR/SVG2/shapes.html#PolylineElement) | Supports `points`. |
 | [polygon](https://www.w3.org/TR/SVG2/shapes.html#PolygonElement) | Supports `points`. |
 | [path](https://www.w3.org/TR/SVG2/shapes.html#PathElement) | Full path data (`M`, `L`, `C`, `Q`, `A`, `Z`, etc.). |
-| [image](https://www.w3.org/TR/SVG2/embedded.html#ImageElement) | Embeds raster image via `href`/`xlink:href`. |
+| [image](https://www.w3.org/TR/SVG2/embedded.html#ImageElement) | Embeds raster image via `href`/`xlink:href`. Exposes `href` (SVGAnimatedString, SVG2). |
 | [text](https://www.w3.org/TR/SVG2/text.html#TextElement) | Supports `x`, `y`, `dx`, `dy`, `fill`, `font-*`. |
 | [tspan](https://www.w3.org/TR/SVG2/text.html#TextElement) | Sub-text within `<text>`. |
 | [linearGradient](https://www.w3.org/TR/SVG2/pservers.html#LinearGradients) | Supports `x1`, `y1`, `x2`, `y2`, `gradientUnits`, `gradientTransform`, `spreadMethod`. |
@@ -2607,7 +2608,6 @@ The Range table above (rows around line 1137) is correct at the interface level,
 | `range.surroundContents(newParent)` on a **collapsed** range | Succeeds and produces an empty wrapper element at the collapse point (e.g. `<mark></mark>`). This matches the spec's "wrap nothing" semantics but is rarely useful. |
 | `range.collapse()` (no argument) | Collapses to **end** (`toStart` defaults to `false` per IDL). Matches the spec. `collapse(true)` collapses to start, `collapse(false)` to end. Both leave `collapsed === true` and equal start/end offsets. |
 | `range.cloneContents()` | **`[Unimplemented]`** — `undefined`; calling throws `TypeError`. Use `extractContents()` and re-insert the original content if you need a copy. |
-| `range.createContextualFragment(html)` | **`[Unimplemented]`** — `undefined`; calling throws `TypeError`. Use a temporary element with `innerHTML = …` and adopt its children instead. |
 | `range.expand(unit)` | **`[Unimplemented]`** (non-standard WebKit-ism). Not available. |
 | `range.getClientRects()` / `getBoundingClientRect()` | Implemented and return per-fragment rects. Verified across multi-line text. |
 

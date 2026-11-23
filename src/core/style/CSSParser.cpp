@@ -1966,8 +1966,9 @@ void CSSParser::parseCompoundSelector(CSSSelectorList* selectorList)
         auto rt = selectorList->size() == 0 ? CSSSelectorListItem::None
                                             : CSSSelectorListItem::SubSelector;
         CSSSelector* selector;
+        // Case-preserving: SVG tag names are case-sensitive.
         if (nsURI.hasValue()) {
-            AtomicString localName = elementName.toAtomicString(starfish()) /* case-preserving: SVG tag names are case-sensitive */;
+            AtomicString localName = elementName.toAtomicString(starfish());
             QualifiedName qname =
                 explicitNamespace
                     ? QualifiedName(prefix.toAttrAtomicString(starfish()),
@@ -1975,11 +1976,11 @@ void CSSParser::parseCompoundSelector(CSSSelectorList* selectorList)
                     : QualifiedName(nsURI.getValue(), localName);
             selector = new CSSNamespacedTagSelector(qname);
         } else {
-            selector = getSelector(
-                { isStar ? CSSSelector::Type::Universal
-                         : CSSSelector::Type::Tag,
-                  CSSSelector::PseudoNone, CSSSelector::CaseInsensitive,
-                  elementName.toAtomicString(starfish()) /* case-preserving: SVG tag names are case-sensitive */ });
+            selector = getSelector({ isStar ? CSSSelector::Type::Universal
+                                            : CSSSelector::Type::Tag,
+                                     CSSSelector::PseudoNone,
+                                     CSSSelector::CaseInsensitive,
+                                     elementName.toAtomicString(starfish()) });
         }
 
         selectorList->insert(selectorList->begin(),
