@@ -2,6 +2,14 @@
   "layer": "behavior",
   "revision": "15223f037559c2e4c61a9f47890fe3159b61b9fd",
   "entries": {
+    "input/pointer-capture-event-order.js": {
+      "expected": "pass",
+      "suite": "internal"
+    },
+    "input/pointer-capture-release.js": {
+      "expected": "pass",
+      "suite": "internal"
+    },
     "access-inspected-object.js": {
       "expected": "fail",
       "category": "timeout"

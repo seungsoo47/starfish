@@ -1,0 +1,7 @@
+Tests pointer capture release with releasePointerCapture
+pointerdown target=target
+gotpointercapture bubbles=true composed=true cancelable=false pointerType=mouse
+pointermove target=target
+hasPointerCapture after release = false
+lostpointercapture bubbles=true composed=true cancelable=false pointerType=mouse
+pointermove target=document

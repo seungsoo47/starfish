@@ -133,9 +133,9 @@ void InputDomain::processMessage(CDPCommand& cmd, const std::string& method)
             return;
         }
         if (type == "mouseMoved") {
-            wv->dispatchMouseEvent(MouseEventKind::MouseEventMove,
-                                   MouseData(MouseButtonValue::NoButton, mask,
-                                             x, y, 0));
+            wv->dispatchMouseEvent(
+                MouseEventKind::MouseEventMove,
+                MouseData(MouseButtonValue::NoButton, mask, x, y, 0));
             cmd.sendResultEmpty();
             return;
         }

@@ -814,7 +814,7 @@ bool HTMLInputElement::handleRangeEvent(Event* event)
         }
         if (event->type()->equals("mousedown")) {
             m_rangeValueAtDragStart = valueAsNumber();
-            browsingContext->setPointerCaptureTarget(this);
+            browsingContext->setPendingPointerCaptureTarget(this);
             moveRangeThumbTo(mouseEvent->pageX(), mouseEvent->pageY());
             return true;
         }
@@ -841,7 +841,7 @@ bool HTMLInputElement::handleRangeEvent(Event* event)
             }
             Touch* touch = touchEvent->touches()->item(0);
             m_rangeValueAtDragStart = valueAsNumber();
-            browsingContext->setPointerCaptureTarget(this);
+            browsingContext->setPendingPointerCaptureTarget(this);
             moveRangeThumbTo(touch->pageX(), touch->pageY());
             return true;
         }
@@ -866,12 +866,15 @@ bool HTMLInputElement::handleRangeEvent(Event* event)
 
 bool HTMLInputElement::draggingRange()
 {
-    return document()->browsingContext()->pointerCaptureTarget() == this;
+    return document()->browsingContext()->pendingPointerCaptureTarget() == this;
 }
 
 void HTMLInputElement::endRangeDrag()
 {
-    document()->browsingContext()->releasePointerCaptureTarget(this);
+    BrowsingContext* browsingContext = document()->browsingContext();
+    if (browsingContext->pendingPointerCaptureTarget() == this) {
+        browsingContext->setPendingPointerCaptureTarget(nullptr);
+    }
     commitRangeValue(m_rangeValueAtDragStart);
 }
 

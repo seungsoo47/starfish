@@ -234,20 +234,18 @@ public:
 
     // Pointer capture (https://w3c.github.io/pointerevents/#pointer-capture).
     // Single active pointer is assumed, so pointerId is ignored.
-    Node* pointerCaptureTarget()
+    // setPointerCapture()/releasePointerCapture() only move the pending
+    // capture target override; gotpointercapture/lostpointercapture fire
+    // from "process pending pointer capture", never from those calls.
+    Node* pendingPointerCaptureTarget()
     {
-        return m_pointerCaptureTarget;
+        return m_pendingPointerCaptureTarget;
     }
-    void setPointerCaptureTarget(Node* n)
+    void setPendingPointerCaptureTarget(Node* n)
     {
-        m_pointerCaptureTarget = n;
+        m_pendingPointerCaptureTarget = n;
     }
-    void releasePointerCaptureTarget(Node* n)
-    {
-        if (m_pointerCaptureTarget == n) {
-            m_pointerCaptureTarget = nullptr;
-        }
-    }
+    void processPendingPointerCapture(MouseData& data, String* pointerType);
     Node* imageAreaForImage(Frame* cb, float x, float y);
 
     void setKeydownEventDefaultPrevented(bool b)
@@ -417,6 +415,11 @@ private:
     // drag. nullptr = no capture. Conservatively scanned (BrowsingContext is
     // a gc object), so no explicit trace needed.
     Node* m_pointerCaptureTarget;
+    // Pending pointer capture target override (https://w3c.github.io/
+    // pointerevents/#pointer-capture): what setPointerCapture()/
+    // releasePointerCapture() move. Settled into m_pointerCaptureTarget by
+    // processPendingPointerCapture() before the next pointer event.
+    Node* m_pendingPointerCaptureTarget;
 
     GCUnorderedSet<Node*> m_hoveredNodeSet;
     Node* m_hoveredNodeTarget;

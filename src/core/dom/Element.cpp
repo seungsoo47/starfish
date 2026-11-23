@@ -31,7 +31,6 @@
 #include "core/dom/DOMTokenList.h"
 #include "core/dom/Element.h"
 #include "core/dom/Event.h"
-#include "core/dom/PointerEvent.h"
 #include "core/dom/HTMLDocument.h"
 #include "core/dom/MutationObserver.h"
 #include "core/dom/MutationObservationScope.h"
@@ -2957,47 +2956,31 @@ void Element::setPointerCapture(int32_t param)
         return;
     }
     BrowsingContext* bc = document()->browsingContext();
+    // https://w3c.github.io/pointerevents/#setting-pointer-capture: "set
+    // pointer capture" only moves the pending capture target override;
+    // gotpointercapture fires when "process pending pointer capture" runs.
     if (bc) {
-        if (bc->pointerCaptureTarget() == this) {
-            return;
-        }
-        // Fire lostpointercapture on the previous capture target, if any, then
-        // gotpointercapture on this element (implicit release + capture, per
-        // https://w3c.github.io/pointerevents/#setting-pointer-capture).
-        Node* prev = bc->pointerCaptureTarget();
-        if (prev && prev->isElement()) {
-            PointerEvent* lost = new PointerEvent(
-                executionContext(),
-                starfish()->staticStrings()->m_lostpointercapture.localName());
-            lost->setBubbles(false);
-            prev->dispatchEvent(lost);
-        }
-        bc->setPointerCaptureTarget(this);
-        PointerEvent* got = new PointerEvent(
-            executionContext(),
-            starfish()->staticStrings()->m_gotpointercapture.localName());
-        got->setBubbles(false);
-        dispatchEvent(got);
+        bc->setPendingPointerCaptureTarget(this);
     }
 }
 
 void Element::releasePointerCapture(int32_t param)
 {
     BrowsingContext* bc = document()->browsingContext();
-    if (bc && bc->pointerCaptureTarget() == this) {
-        bc->releasePointerCaptureTarget(this);
-        PointerEvent* lost = new PointerEvent(
-            executionContext(),
-            starfish()->staticStrings()->m_lostpointercapture.localName());
-        lost->setBubbles(false);
-        dispatchEvent(lost);
+    // https://w3c.github.io/pointerevents/#releasing-pointer-capture:
+    // "release pointer capture" is a no-op when this element does not hold
+    // the pending capture; no event fires from this call itself.
+    if (bc && bc->pendingPointerCaptureTarget() == this) {
+        bc->setPendingPointerCaptureTarget(nullptr);
     }
 }
 
 bool Element::hasPointerCapture(int32_t param)
 {
     BrowsingContext* bc = document()->browsingContext();
-    return bc && bc->pointerCaptureTarget() == this;
+    // hasPointerCapture reflects the pending capture target override
+    // (https://w3c.github.io/pointerevents/#dom-element-haspointercapture).
+    return bc && bc->pendingPointerCaptureTarget() == this;
 }
 
 Promise* Element::requestFullscreen()

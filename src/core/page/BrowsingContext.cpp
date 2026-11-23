@@ -133,6 +133,7 @@ BrowsingContext::BrowsingContext(WebView* webView, HTMLIFrameElement* source,
     , m_activeNodeTarget(nullptr)
     , m_documentVersionWhenComputingActiveNodeSet(0)
     , m_pointerCaptureTarget(nullptr)
+    , m_pendingPointerCaptureTarget(nullptr)
     , m_hoveredNodeTarget(nullptr)
     , m_documentVersionWhenComputingHoveredNodeSet(0)
     , m_focusedNode(nullptr)
@@ -671,6 +672,7 @@ void BrowsingContext::dispose()
     m_activeNodeSet.clear();
     m_activeNodeTarget = nullptr;
     m_pointerCaptureTarget = nullptr;
+    m_pendingPointerCaptureTarget = nullptr;
     m_documentVersionWhenComputingActiveNodeSet = 0;
 
     m_hoveredNodeSet.clear();
@@ -1212,6 +1214,42 @@ static PointerEvent* createPointerEvent(Document* document, String* name,
     return event;
 }
 
+void BrowsingContext::processPendingPointerCapture(MouseData& data,
+                                                   String* pointerType)
+{
+    // https://w3c.github.io/pointerevents/#process-pending-pointer-capture.
+    // Snapshot both targets first: a gotpointercapture/lostpointercapture
+    // handler may call setPointerCapture()/releasePointerCapture(), which
+    // only moves the pending override and must not change what this step
+    // settles here.
+    Node* overrideTarget = m_pointerCaptureTarget;
+    Node* pendingTarget = m_pendingPointerCaptureTarget;
+
+    if (overrideTarget && overrideTarget != pendingTarget) {
+        // A capture target override that left the document can no longer
+        // receive events: the spec fires lostpointercapture at the document.
+        Node* lostTarget =
+            overrideTarget->isConnected() ? overrideTarget : document();
+        Event* lost = createPointerEvent(
+            document(),
+            starfish()->staticStrings()->m_lostpointercapture.localName(), data,
+            pointerType);
+        lost->setCancelable(false);
+        document()->window()->dispatchEventByUA(lostTarget, lost);
+    }
+
+    if (pendingTarget && pendingTarget != overrideTarget) {
+        Event* got = createPointerEvent(
+            document(),
+            starfish()->staticStrings()->m_gotpointercapture.localName(), data,
+            pointerType);
+        got->setCancelable(false);
+        document()->window()->dispatchEventByUA(pendingTarget, got);
+    }
+
+    m_pointerCaptureTarget = pendingTarget;
+}
+
 bool BrowsingContext::isInnerIFrameEvent(Node* targetNode, double& posX,
                                          double& posY)
 {
@@ -1451,8 +1489,21 @@ bool BrowsingContext::dispatchTouchEvent(TouchEventKind kind,
             Event* cancelEvent = createTouchEvent(document(), cancelName,
                                                   pageTouches.data(), count);
             document()->window()->dispatchEventByUA(t, cancelEvent);
+
+            // Implicit pointer capture release on pointercancel: the spec
+            // clears the pending override after pointercancel, then "process
+            // pending pointer capture" fires lostpointercapture on the
+            // (former) capture target.
+            m_pendingPointerCaptureTarget = nullptr;
+            MouseData cancelData(
+                MouseButtonValue::LeftButton, MouseButtonsValue::LeftButtonDown,
+                pageTouches[0].clientX(), pageTouches[0].clientY(), 1);
+            processPendingPointerCapture(
+                cancelData, starfish()->staticStrings()->m_pointerTypeTouch);
+        } else {
+            m_pointerCaptureTarget = nullptr;
+            m_pendingPointerCaptureTarget = nullptr;
         }
-        m_pointerCaptureTarget = nullptr;
         return false;
     }
     if (count < 1) {
@@ -1485,6 +1536,19 @@ bool BrowsingContext::dispatchTouchEvent(TouchEventKind kind,
         touches[i].setClientX(touches[i].pageX());
         touches[i].setClientY(touches[i].pageY());
     }
+
+    // Settle any pending capture override before picking the event target:
+    // touchmove and touchend retarget to the capture target, so a change
+    // queued by setPointerCapture()/releasePointerCapture() must be applied
+    // first (https://w3c.github.io/pointerevents/#process-pending-pointer-
+    // capture). Data is built from the first touch; the pointerData below is
+    // not available yet because it needs the hit-test result.
+    MouseData pendingData(MouseButtonValue::LeftButton,
+                          MouseButtonsValue::LeftButtonDown,
+                          touches[0].clientX(), touches[0].clientY(), 1);
+    processPendingPointerCapture(
+        pendingData, starfish()->staticStrings()->m_pointerTypeTouch);
+
     // Handle touch informations
     // - Do the hitTest for all `Touch` informations and set target for each.
     // - Decide representative target (= first non-empty target).
@@ -1706,19 +1770,12 @@ bool BrowsingContext::dispatchTouchEvent(TouchEventKind kind,
             document(), starfish()->staticStrings()->m_pointerup.localName(),
             pointerData, starfish()->staticStrings()->m_pointerTypeTouch);
         document()->window()->dispatchEventByUA(pt, pe);
-        // Implicit pointer capture release on pointerup: fire
-        // lostpointercapture on the capture target first, then clear.
-        if (m_pointerCaptureTarget) {
-            Node* pt = m_pointerCaptureTarget;
-            m_pointerCaptureTarget = nullptr;
-            if (pt->isElement()) {
-                PointerEvent* lost = new PointerEvent(
-                    document()->executionContext(),
-                    starfish()->staticStrings()->m_lostpointercapture.localName());
-                lost->setBubbles(false);
-                pt->asElement()->dispatchEvent(lost);
-            }
-        }
+        // Implicit pointer capture release on pointerup: the spec clears the
+        // pending override after pointerup, then "process pending pointer
+        // capture" fires lostpointercapture on the (former) capture target.
+        m_pendingPointerCaptureTarget = nullptr;
+        processPendingPointerCapture(
+            pointerData, starfish()->staticStrings()->m_pointerTypeTouch);
         if (clickableEvent) {
             if (webView()->linkEffectEnabled() &&
                 isTapSoundFeedbackTarget(starfish(), t)) {
@@ -1812,6 +1869,13 @@ bool BrowsingContext::dispatchMouseEvent(MouseEventKind kind, MouseData data)
 
     data.setClientX(baseClientX + scrollOffsetX);
     data.setClientY(baseClientY + scrollOffsetY);
+
+    // Settle any pending capture override before picking the event target:
+    // a capture queued by setPointerCapture() in a pointerdown handler
+    // retargets the following moves (https://w3c.github.io/pointerevents/
+    // #process-pending-pointer-capture), so it must be applied first.
+    processPendingPointerCapture(
+        data, starfish()->staticStrings()->m_pointerTypeMouse);
 
     // Pointer-capture fast path for moves: when an element has captured the
     // pointer (e.g. the YouTube seek-bar thumb), a mousemove's hit-test result
@@ -1996,19 +2060,12 @@ bool BrowsingContext::dispatchMouseEvent(MouseEventKind kind, MouseData data)
             upData, starfish()->staticStrings()->m_pointerTypeMouse);
         document()->window()->dispatchEventByUA(t, pe);
 
-        // Implicit pointer capture release on pointerup: fire
-        // lostpointercapture on the capture target first, then clear.
-        if (m_pointerCaptureTarget) {
-            Node* pt = m_pointerCaptureTarget;
-            m_pointerCaptureTarget = nullptr;
-            if (pt->isElement()) {
-                PointerEvent* lost = new PointerEvent(
-                    document()->executionContext(),
-                    starfish()->staticStrings()->m_lostpointercapture.localName());
-                lost->setBubbles(false);
-                pt->asElement()->dispatchEvent(lost);
-            }
-        }
+        // Implicit pointer capture release on pointerup: the spec clears the
+        // pending override after pointerup, then "process pending pointer
+        // capture" fires lostpointercapture on the (former) capture target.
+        m_pendingPointerCaptureTarget = nullptr;
+        processPendingPointerCapture(
+            upData, starfish()->staticStrings()->m_pointerTypeMouse);
 
         if (clickableEvent) {
             if (webView()->linkEffectEnabled() &&
