@@ -133,6 +133,8 @@ BrowsingContext::BrowsingContext(WebView* webView, HTMLIFrameElement* source,
     , m_activeNodeTarget(nullptr)
     , m_documentVersionWhenComputingActiveNodeSet(0)
     , m_pointerCaptureTarget(nullptr)
+    , m_pendingPointerCaptureTarget(nullptr)
+    , m_isUAPointerCapture(false)
     , m_hoveredNodeTarget(nullptr)
     , m_documentVersionWhenComputingHoveredNodeSet(0)
     , m_focusedNode(nullptr)
@@ -671,6 +673,8 @@ void BrowsingContext::dispose()
     m_activeNodeSet.clear();
     m_activeNodeTarget = nullptr;
     m_pointerCaptureTarget = nullptr;
+    m_pendingPointerCaptureTarget = nullptr;
+    m_isUAPointerCapture = false;
     m_documentVersionWhenComputingActiveNodeSet = 0;
 
     m_hoveredNodeSet.clear();
@@ -1207,6 +1211,50 @@ static PointerEvent* createPointerEvent(Document* document, String* name,
     return event;
 }
 
+void BrowsingContext::processPendingPointerCapture(MouseData& data,
+                                                   String* pointerType)
+{
+    // https://w3c.github.io/pointerevents/#process-pending-pointer-capture
+    // Snapshot both targets first so listeners calling setPointerCapture() or
+    // releasePointerCapture() only affect subsequent processing steps.
+    Node* overrideTarget = m_pointerCaptureTarget;
+    Node* pendingTarget = m_pendingPointerCaptureTarget;
+    bool wasUACapture = m_isUAPointerCapture;
+
+    // https://w3c.github.io/pointerevents/#implicit-release-after-node-removal
+    if (pendingTarget && !pendingTarget->isConnected()) {
+        m_pendingPointerCaptureTarget = nullptr;
+        pendingTarget = nullptr;
+    }
+
+    if (!wasUACapture) {
+        if (overrideTarget && overrideTarget != pendingTarget) {
+            Node* lostTarget =
+                overrideTarget->isConnected() ? overrideTarget : document();
+            Event* lost = createPointerEvent(
+                document(),
+                starfish()->staticStrings()->m_lostpointercapture.localName(),
+                data, pointerType);
+            lost->setCancelable(false);
+            document()->window()->dispatchEventByUA(lostTarget, lost);
+        }
+
+        if (pendingTarget && pendingTarget != overrideTarget) {
+            Event* got = createPointerEvent(
+                document(),
+                starfish()->staticStrings()->m_gotpointercapture.localName(),
+                data, pointerType);
+            got->setCancelable(false);
+            document()->window()->dispatchEventByUA(pendingTarget, got);
+        }
+    }
+
+    m_pointerCaptureTarget = pendingTarget;
+    if (!m_pointerCaptureTarget) {
+        m_isUAPointerCapture = false;
+    }
+}
+
 bool BrowsingContext::isInnerIFrameEvent(Node* targetNode, double& posX,
                                          double& posY)
 {
@@ -1450,8 +1498,19 @@ bool BrowsingContext::dispatchTouchEvent(TouchEventKind kind,
             Event* cancelEvent = createTouchEvent(document(), cancelName,
                                                   pageTouches.data(), count);
             document()->window()->dispatchEventByUA(t, cancelEvent);
+
+            // Implicit pointer capture release on pointercancel.
+            m_pendingPointerCaptureTarget = nullptr;
+            MouseData cancelData(
+                MouseButtonValue::LeftButton, MouseButtonsValue::LeftButtonDown,
+                pageTouches[0].clientX(), pageTouches[0].clientY(), 1);
+            processPendingPointerCapture(
+                cancelData, starfish()->staticStrings()->m_pointerTypeTouch);
+        } else {
+            m_pointerCaptureTarget = nullptr;
+            m_pendingPointerCaptureTarget = nullptr;
+            m_isUAPointerCapture = false;
         }
-        m_pointerCaptureTarget = nullptr;
         return false;
     }
     if (count < 1) {
@@ -1484,6 +1543,14 @@ bool BrowsingContext::dispatchTouchEvent(TouchEventKind kind,
         touches[i].setClientX(touches[i].pageX());
         touches[i].setClientY(touches[i].pageY());
     }
+
+    // https://w3c.github.io/pointerevents/#process-pending-pointer-capture
+    MouseData pendingData(MouseButtonValue::LeftButton,
+                          MouseButtonsValue::LeftButtonDown,
+                          touches[0].clientX(), touches[0].clientY(), 1);
+    processPendingPointerCapture(
+        pendingData, starfish()->staticStrings()->m_pointerTypeTouch);
+
     // Handle touch informations
     // - Do the hitTest for all `Touch` informations and set target for each.
     // - Decide representative target (= first non-empty target).
@@ -1706,7 +1773,9 @@ bool BrowsingContext::dispatchTouchEvent(TouchEventKind kind,
             pointerData, starfish()->staticStrings()->m_pointerTypeTouch);
         document()->window()->dispatchEventByUA(pt, pe);
         // Implicit pointer capture release on pointerup.
-        m_pointerCaptureTarget = nullptr;
+        m_pendingPointerCaptureTarget = nullptr;
+        processPendingPointerCapture(
+            pointerData, starfish()->staticStrings()->m_pointerTypeTouch);
         if (clickableEvent) {
             if (webView()->linkEffectEnabled() &&
                 isTapSoundFeedbackTarget(starfish(), t)) {
@@ -1800,6 +1869,10 @@ bool BrowsingContext::dispatchMouseEvent(MouseEventKind kind, MouseData data)
 
     data.setClientX(baseClientX + scrollOffsetX);
     data.setClientY(baseClientY + scrollOffsetY);
+
+    // https://w3c.github.io/pointerevents/#process-pending-pointer-capture
+    processPendingPointerCapture(
+        data, starfish()->staticStrings()->m_pointerTypeMouse);
 
     // Pointer-capture fast path for moves: when an element has captured the
     // pointer (e.g. the YouTube seek-bar thumb), a mousemove's hit-test result
@@ -1985,7 +2058,9 @@ bool BrowsingContext::dispatchMouseEvent(MouseEventKind kind, MouseData data)
         document()->window()->dispatchEventByUA(t, pe);
 
         // Implicit pointer capture release on pointerup.
-        m_pointerCaptureTarget = nullptr;
+        m_pendingPointerCaptureTarget = nullptr;
+        processPendingPointerCapture(
+            upData, starfish()->staticStrings()->m_pointerTypeMouse);
 
         if (clickableEvent) {
             if (webView()->linkEffectEnabled() &&

@@ -1,0 +1,7 @@
+Tests pointer capture event order with setPointerCapture
+pointerdown target=target pointerType=mouse
+hasPointerCapture in pointerdown = true
+gotpointercapture bubbles=true composed=true cancelable=false pointerType=mouse
+pointermove target=target pointerType=mouse
+pointerup target=target pointerType=mouse
+lostpointercapture bubbles=true composed=true cancelable=false pointerType=mouse

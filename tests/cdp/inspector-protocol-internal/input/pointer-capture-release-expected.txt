@@ -1,0 +1,8 @@
+Tests pointer capture release with releasePointerCapture
+pointerdown target=target
+gotpointercapture bubbles=true composed=true cancelable=false pointerType=mouse
+captured pointermove target=target
+hasPointerCapture after release = false
+pointermove at DIV
+lostpointercapture bubbles=true composed=true cancelable=false pointerType=mouse
+pointermove at BODY

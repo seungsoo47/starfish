@@ -1,0 +1,6 @@
+Tests implicit pointer capture release after node removal
+pointermove at DIV hasCapture=true
+-- removed, hasCapture=false
+lostpointercapture at document
+pointermove at BODY hasCapture=false
+pointerup

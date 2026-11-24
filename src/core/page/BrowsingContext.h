@@ -234,20 +234,40 @@ public:
 
     // Pointer capture (https://w3c.github.io/pointerevents/#pointer-capture).
     // Single active pointer is assumed, so pointerId is ignored.
-    Node* pointerCaptureTarget()
+    // setPointerCapture()/releasePointerCapture() only move the pending
+    // capture target override; gotpointercapture/lostpointercapture fire
+    // from "process pending pointer capture", never from those calls.
+    Node* pendingPointerCaptureTarget()
     {
-        return m_pointerCaptureTarget;
+        return m_isUAPointerCapture ? nullptr : m_pendingPointerCaptureTarget;
     }
-    void setPointerCaptureTarget(Node* n)
+    void setPendingPointerCaptureTarget(Node* n)
+    {
+        m_pendingPointerCaptureTarget = n;
+        m_isUAPointerCapture = false;
+    }
+    // UA-internal capture (e.g. <input type=range> drag) stays invisible to
+    // page script: hasPointerCapture() is false, releasePointerCapture() is a
+    // no-op, and no got/lostpointercapture events are dispatched.
+    Node* uaPointerCaptureTarget()
+    {
+        return m_isUAPointerCapture ? m_pendingPointerCaptureTarget : nullptr;
+    }
+    void setUAPointerCaptureTarget(Node* n)
     {
         m_pointerCaptureTarget = n;
+        m_pendingPointerCaptureTarget = n;
+        m_isUAPointerCapture = true;
     }
-    void releasePointerCaptureTarget(Node* n)
+    void releaseUAPointerCaptureTarget(Node* n)
     {
-        if (m_pointerCaptureTarget == n) {
+        if (m_isUAPointerCapture && m_pendingPointerCaptureTarget == n) {
             m_pointerCaptureTarget = nullptr;
+            m_pendingPointerCaptureTarget = nullptr;
+            m_isUAPointerCapture = false;
         }
     }
+    void processPendingPointerCapture(MouseData& data, String* pointerType);
     Node* imageAreaForImage(Frame* cb, float x, float y);
 
     void setKeydownEventDefaultPrevented(bool b)
@@ -417,6 +437,8 @@ private:
     // drag. nullptr = no capture. Conservatively scanned (BrowsingContext is
     // a gc object), so no explicit trace needed.
     Node* m_pointerCaptureTarget;
+    Node* m_pendingPointerCaptureTarget;
+    bool m_isUAPointerCapture : 1;
 
     GCUnorderedSet<Node*> m_hoveredNodeSet;
     Node* m_hoveredNodeTarget;

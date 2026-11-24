@@ -1483,6 +1483,22 @@
       "expected": "fail",
       "category": "timeout"
     },
+    "input/pointer-capture-disconnect.js": {
+      "expected": "pass",
+      "suite": "internal"
+    },
+    "input/pointer-capture-event-order.js": {
+      "expected": "pass",
+      "suite": "internal"
+    },
+    "input/pointer-capture-release.js": {
+      "expected": "pass",
+      "suite": "internal"
+    },
+    "input/pointer-capture-ua-range.js": {
+      "expected": "pass",
+      "suite": "internal"
+    },
     "inspector/worker-script-loaded.js": {
       "expected": "fail",
       "category": "timeout"

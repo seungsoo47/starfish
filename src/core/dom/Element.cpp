@@ -2956,23 +2956,27 @@ void Element::setPointerCapture(int32_t param)
         return;
     }
     BrowsingContext* bc = document()->browsingContext();
+    // https://w3c.github.io/pointerevents/#setting-pointer-capture
     if (bc) {
-        bc->setPointerCaptureTarget(this);
+        bc->setPendingPointerCaptureTarget(this);
     }
 }
 
 void Element::releasePointerCapture(int32_t param)
 {
     BrowsingContext* bc = document()->browsingContext();
-    if (bc) {
-        bc->releasePointerCaptureTarget(this);
+    // https://w3c.github.io/pointerevents/#releasing-pointer-capture
+    if (bc && bc->pendingPointerCaptureTarget() == this) {
+        bc->setPendingPointerCaptureTarget(nullptr);
     }
 }
 
 bool Element::hasPointerCapture(int32_t param)
 {
     BrowsingContext* bc = document()->browsingContext();
-    return bc && bc->pointerCaptureTarget() == this;
+    // https://w3c.github.io/pointerevents/#dom-element-haspointercapture
+    // https://w3c.github.io/pointerevents/#implicit-release-after-node-removal
+    return bc && bc->pendingPointerCaptureTarget() == this && isConnected();
 }
 
 Promise* Element::requestFullscreen()

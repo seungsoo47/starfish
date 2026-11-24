@@ -1,0 +1,3 @@
+Tests UA-internal range drag capture isolation
+mousedown hasCapture=false
+final value > 50: true
