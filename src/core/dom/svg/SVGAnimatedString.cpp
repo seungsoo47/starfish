@@ -20,6 +20,8 @@
 #include "StarfishConfig.h"
 #include "SVGAnimatedString.h"
 #include "core/dom/svg/SVGElement.h"
+#include "StaticStrings.h"
+#include "Starfish.h"
 
 namespace Starfish {
 
@@ -34,11 +36,43 @@ SVGAnimatedString::SVGAnimatedString(SVGElement* targetElement,
 {
 }
 
+String* SVGAnimatedString::baseVal() const
+{
+    if (m_targetElement) {
+        StaticStrings* ss = m_targetElement->starfish()->staticStrings();
+        if (m_targetAttribute == ss->m_href) {
+            // SVG2 URIReference: 'href' takes precedence over 'xlink:href'
+            if (m_targetElement->hasAttribute(ss->m_href) != SIZE_MAX) {
+                return m_targetElement->getAttributeOrEmpty(ss->m_href);
+            }
+            if (m_targetElement->hasAttribute(ss->m_xlinkHref) != SIZE_MAX) {
+                return m_targetElement->getAttributeOrEmpty(ss->m_xlinkHref);
+            }
+            return String::emptyString;
+        } else {
+            if (m_targetElement->hasAttribute(m_targetAttribute) != SIZE_MAX) {
+                return m_targetElement->getAttributeOrEmpty(m_targetAttribute);
+            }
+        }
+    }
+    return m_baseVal ? m_baseVal : String::emptyString;
+}
+
+String* SVGAnimatedString::animVal() const
+{
+    return baseVal();
+}
+
 void SVGAnimatedString::setBaseVal(String* baseVal, bool fromSetAttribute)
 {
     m_animVal = m_baseVal = baseVal;
-    if (!fromSetAttribute) {
-        m_targetElement->updateSVGAttributeNeeded(m_targetAttribute);
+    if (!fromSetAttribute && m_targetElement) {
+        StaticStrings* ss = m_targetElement->starfish()->staticStrings();
+        if (m_targetAttribute == ss->m_href) {
+            m_targetElement->setAttribute(ss->m_href, baseVal);
+        } else {
+            m_targetElement->setAttribute(m_targetAttribute, baseVal);
+        }
     }
 }
 

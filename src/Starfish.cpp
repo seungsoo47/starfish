@@ -19,6 +19,8 @@
 
 #include "StarfishConfig.h"
 #include "Starfish.h"
+#include "core/dom/HTMLSlotElement.h"
+#include "core/dom/Node.h"
 #include "core/modules/threading/Locker.h"
 #include "core/modules/threading/Thread.h"
 #include "core/modules/threading/ThreadPool.h"
@@ -142,6 +144,28 @@ GCUnorderedMap<Node*, HTMLSlotElement*>& Starfish::manualSlotAssignments()
         m_manualSlotAssignments = new GCUnorderedMap<Node*, HTMLSlotElement*>();
     }
     return *m_manualSlotAssignments;
+}
+
+void Starfish::purgeManualSlotAssignments(Document* document)
+{
+    if (!m_manualSlotAssignments) {
+        return;
+    }
+    auto& assignments = *m_manualSlotAssignments;
+    for (auto iter = assignments.begin(); iter != assignments.end();) {
+        if (iter->first->ownerDocument() == document ||
+            iter->second->ownerDocument() == document) {
+            iter = assignments.erase(iter);
+        } else {
+            ++iter;
+        }
+    }
+    if (assignments.empty()) {
+        // GC-allocated objects cannot be freed explicitly; dropping the only
+        // reference lets the collector reclaim the map and restores the
+        // lazy-allocation state.
+        m_manualSlotAssignments = nullptr;
+    }
 }
 
 void Starfish::destroy()

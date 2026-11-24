@@ -10,6 +10,10 @@
       "expected": "pass",
       "suite": "internal"
     },
+    "input/pointer-capture-disconnect.js": {
+      "expected": "pass",
+      "suite": "internal"
+    },
     "access-inspected-object.js": {
       "expected": "fail",
       "category": "timeout"

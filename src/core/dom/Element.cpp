@@ -2937,15 +2937,7 @@ String* Element::slot()
 
 Optional<HTMLSlotElement*> Element::assignedSlot()
 {
-    // assignedSlot returns the result of "find a slot" with the open flag set:
-    // a slot inside a closed shadow tree must not be exposed to script, so use
-    // the public shadowRoot() getter which yields null for closed roots.
-    Optional<ShadowRoot*> shadowRoot;
-    if (parentElement() && (shadowRoot = parentElement()->shadowRoot())) {
-        String* slotName = slot();
-        return shadowRoot->assignedSlot(slotName);
-    }
-    return nullptr;
+    return findAssignedSlot();
 }
 
 void Element::setPointerCapture(int32_t param)
@@ -2979,8 +2971,10 @@ bool Element::hasPointerCapture(int32_t param)
 {
     BrowsingContext* bc = document()->browsingContext();
     // hasPointerCapture reflects the pending capture target override
-    // (https://w3c.github.io/pointerevents/#dom-element-haspointercapture).
-    return bc && bc->pendingPointerCaptureTarget() == this;
+    // (https://w3c.github.io/pointerevents/#dom-element-haspointercapture),
+    // but a target removed from the document has implicitly released
+    // (https://w3c.github.io/pointerevents/#implicit-release-after-node-removal).
+    return bc && bc->pendingPointerCaptureTarget() == this && isConnected();
 }
 
 Promise* Element::requestFullscreen()

@@ -127,6 +127,11 @@ public:
         m_isAlreadyStarted = true;
         m_didScriptExecuted = true;
     }
+    void clearAlreadyStarted()
+    {
+        m_isAlreadyStarted = false;
+        m_didScriptExecuted = false;
+    }
 
     bool isValidClassicScriptType();
     bool isValidScriptType();

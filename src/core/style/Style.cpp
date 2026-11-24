@@ -9138,7 +9138,19 @@ bool StyleResolver::checkOne(
         }
         return false;
     } else if (selectorType == CSSSelector::Type::Tag) {
-        return (elementName == selector->selectorText());
+        if (elementName == selector->selectorText()) {
+            return true;
+        }
+        // Type selectors match HTML elements ASCII case-insensitively and
+        // every other element (SVG, XML) case-sensitively
+        // (https://drafts.csswg.org/selectors-4/#type-selectors,
+        // https://html.spec.whatwg.org/multipage/semantics-other.html#case-sensitivity-of-selectors).
+        // Only selectors whose parsed name contained uppercase letters carry
+        // the lowercased form (CSSCaseInsensitiveTagSelector).
+        return selector->isCaseInsensitiveTagSelector() &&
+               element->isHTMLElement() &&
+               elementName == selector->asCSSCaseInsensitiveTagSelector()
+                                  ->lowercasedText();
     } else if (selectorType == CSSSelector::Type::NamespacedTag) {
         const QualifiedName& want =
             selector->asCSSNamespacedTagSelector()->qualifiedName();
@@ -9146,7 +9158,17 @@ bool StyleResolver::checkOne(
         // CSSNamespacedTagSelector's comment for why.
         if (!want.localName()->equals("*") &&
             elementName != selector->selectorText()) {
-            return false;
+            // The namespace written in the selector does not affect
+            // case-sensitivity: a type selector still matches HTML elements
+            // ASCII case-insensitively
+            // (https://drafts.csswg.org/selectors-4/#type-selectors); the
+            // namespace check below then decides whether this element
+            // qualifies.
+            if (!(element->isHTMLElement() &&
+                  elementName == selector->asCSSNamespacedTagSelector()
+                                     ->lowercasedLocalName())) {
+                return false;
+            }
         }
         AtomicString wantNsURI = want.namespaceURI().getValue();
         if (wantNsURI.string()->equals("*")) {
@@ -11878,6 +11900,30 @@ void StyleResolver::addToRuleSet(std::pair<StyleRule*, ResourceURL*> rule)
     }
     if (!tagName.isEmptyAtomicString()) {
         m_ruleSet->tagRules().insert(std::make_pair(tagName, rule));
+        // Rules are looked up by the element's local name, and an
+        // uppercase-name type selector also matches HTML elements by the
+        // ASCII-lowercased name
+        // (https://drafts.csswg.org/selectors-4/#type-selectors); bucket
+        // under both spellings so either lookup finds the rule -- checkOne()
+        // decides which elements actually match.
+        const AtomicString* lowercased = nullptr;
+        if (selectorList[0].m_selector->isCaseInsensitiveTagSelector()) {
+            lowercased = &selectorList[0]
+                              .m_selector->asCSSCaseInsensitiveTagSelector()
+                              ->lowercasedText();
+        } else if (selectorList[0].m_selector->type() ==
+                   CSSSelector::Type::NamespacedTag) {
+            const AtomicString& lower =
+                selectorList[0]
+                    .m_selector->asCSSNamespacedTagSelector()
+                    ->lowercasedLocalName();
+            if (!lower.isEmptyAtomicString()) {
+                lowercased = &lower;
+            }
+        }
+        if (lowercased && *lowercased != tagName) {
+            m_ruleSet->tagRules().insert(std::make_pair(*lowercased, rule));
+        }
         return;
     }
     m_ruleSet->universalRules().push_back(rule);

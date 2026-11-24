@@ -33,6 +33,7 @@ class WorkerManager;
 class Profiler;
 class Node;
 class HTMLSlotElement;
+class Document;
 
 #if defined(STARFISH_ENABLE_HTTPCACHE)
 class HTTPCache;
@@ -109,9 +110,16 @@ public:
     // not on Node, so pages that never call assign() pay nothing and a node
     // carries the reference with it when it moves between documents.
     // ponytail: the map strongly references its nodes and slots, so entries
-    // extend those objects' lifetime until the node is re-assigned or this
-    // instance dies.
+    // extend those objects' lifetime until the node is re-assigned, its
+    // document goes away (purgeManualSlotAssignments), or this instance dies.
     GCUnorderedMap<Node*, HTMLSlotElement*>& manualSlotAssignments();
+
+    // Drops the entries whose node or slot belongs to |document|, called
+    // when a document goes away (navigation, iframe removal, instance
+    // teardown); otherwise the entries would keep the whole old document
+    // reachable until this instance dies. Returns to the lazy-allocation
+    // state when the map empties.
+    void purgeManualSlotAssignments(Document* document);
 
     unsigned char gcFrequency()
     {

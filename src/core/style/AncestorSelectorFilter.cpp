@@ -84,8 +84,11 @@ void AncestorSelectorFilter::popNode()
 }
 
 static inline void collectDescendantSelectorIdentifierHashes(
-    CSSSelector* selector, unsigned*& hash)
+    CSSSelector* selector, unsigned*& hash, unsigned* end)
 {
+    if (hash == end) {
+        return;
+    }
     switch (selector->type()) {
     case CSSSelector::Id:
         (*hash++) = selector->selectorText().string()->hashValue() * IdSalt;
@@ -95,6 +98,18 @@ static inline void collectDescendantSelectorIdentifierHashes(
             selector->selectorText().string()->hashValue() * ClassNameSalt;
         break;
     case CSSSelector::Tag:
+        if (selector->isCaseInsensitiveTagSelector()) {
+            // An uppercase type selector matches HTML elements by the
+            // lowercased name ("div") and XML/SVG elements by the exact name
+            // ("DIV"). Since m_identifierHashes is an AND-conjunction (all
+            // hashes must be present in the bloom filter), adding both
+            // requires both to exist on ancestors, which falsely rejects HTML
+            // ancestors whose localName is only lowercased. Adding only one
+            // would falsely reject the other namespace. Skip collecting so the
+            // rule is never falsely rejected; checkOne() performs the full
+            // case-aware check.
+            break;
+        }
         (*hash++) =
             selector->selectorText().string()->hashValue() * TagNameSalt;
         break;
@@ -107,6 +122,13 @@ static inline void collectDescendantSelectorIdentifierHashes(
         const QualifiedName& name =
             selector->asCSSNamespacedTagSelector()->qualifiedName();
         if (!name.localName()->equals("*")) {
+            const AtomicString& lower =
+                selector->asCSSNamespacedTagSelector()->lowercasedLocalName();
+            if (!lower.isEmptyAtomicString()) {
+                // Same as the Tag case above: uppercase local name could match
+                // HTML lowercased or XML/SVG exact case. Skip collecting.
+                break;
+            }
             (*hash++) =
                 selector->selectorText().string()->hashValue() * TagNameSalt;
         }
@@ -141,7 +163,7 @@ void AncestorSelectorFilter::computeIdentifierHash(StyleRule* rule)
         switch (relation) {
         case CSSSelectorListItem::SubSelector:
             if (!skipOverSubselectors)
-                collectDescendantSelectorIdentifierHashes(selector, hash);
+                collectDescendantSelectorIdentifierHashes(selector, hash, end);
             break;
         case CSSSelectorListItem::AdjacentSibling:
         case CSSSelectorListItem::GeneralSibling:
@@ -155,7 +177,7 @@ void AncestorSelectorFilter::computeIdentifierHash(StyleRule* rule)
                 break;
             }
             skipOverSubselectors = false;
-            collectDescendantSelectorIdentifierHashes(selector, hash);
+            collectDescendantSelectorIdentifierHashes(selector, hash, end);
             break;
         default:
             STARFISH_ASSERT_NOT_REACHED();

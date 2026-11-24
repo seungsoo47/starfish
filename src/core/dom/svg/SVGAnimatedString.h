@@ -34,15 +34,8 @@ public:
     DECLARE_SCRIPT_BINDING_REQUIRED_FUNCTIONS(SVGAnimatedString)
 
     void setBaseVal(String* baseVal, bool fromSetAttribute = false);
-    String* baseVal() const
-    {
-        return m_baseVal;
-    }
-
-    String* animVal() const
-    {
-        return m_animVal;
-    }
+    String* baseVal() const;
+    String* animVal() const;
 
 protected:
     SVGElement* m_targetElement;

@@ -57,6 +57,11 @@ http://web-platform.test:8000/dom/nodes/Node-parentNode.html
 http://web-platform.test:8000/dom/nodes/Element-removeAttributeNS.html
 http://web-platform.test:8000/dom/nodes/ChildNode-after.html
 http://web-platform.test:8000/dom/nodes/ParentNode-append.html
+http://web-platform.test:8000/dom/nodes/ParentNode-replaceChildren.html
+http://web-platform.test:8000/dom/nodes/ParentNode-querySelector-case-insensitive.html
+# [auto-fail:FAIL] http://web-platform.test:8000/dom/nodes/ParentNode-querySelector-All.html
+# [auto-fail:FAIL] http://web-platform.test:8000/dom/nodes/Element-matches.html
+# [auto-fail:FAIL] http://web-platform.test:8000/dom/nodes/Element-closest.html
 http://web-platform.test:8000/dom/nodes/Document-getElementsByClassName.html
 http://web-platform.test:8000/dom/nodes/Node-isSameNode.html
 http://web-platform.test:8000/dom/nodes/Node-isConnected-shadow-dom.html

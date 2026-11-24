@@ -3287,6 +3287,7 @@ protected:
 
 class CSSSelector;
 class CSSAttributeSelector;
+class CSSCaseInsensitiveTagSelector;
 class CSSNamespacedTagSelector;
 class CSSPseudoSelector;
 
@@ -3374,6 +3375,7 @@ public:
         : m_type(type)
         , m_pseudotype(pseudoType)
         , m_attributeMatch(attributeMatch)
+        , m_tagCaseInsensitive(false)
         , m_selectorText(text)
     {
     }
@@ -3409,6 +3411,26 @@ public:
     {
         STARFISH_ASSERT(isNamespacedTagSelector());
         return (const CSSNamespacedTagSelector*)this;
+    }
+
+    // True only for CSSCaseInsensitiveTagSelector: a type selector whose
+    // parsed name contained ASCII uppercase letters, carrying the
+    // ASCII-lowercased form used when matching HTML elements.
+    bool isCaseInsensitiveTagSelector() const
+    {
+        return m_tagCaseInsensitive;
+    }
+
+    CSSCaseInsensitiveTagSelector* asCSSCaseInsensitiveTagSelector()
+    {
+        STARFISH_ASSERT(isCaseInsensitiveTagSelector());
+        return (CSSCaseInsensitiveTagSelector*)this;
+    }
+
+    const CSSCaseInsensitiveTagSelector* asCSSCaseInsensitiveTagSelector() const
+    {
+        STARFISH_ASSERT(isCaseInsensitiveTagSelector());
+        return (const CSSCaseInsensitiveTagSelector*)this;
     }
 
     bool isPseudoSelector() const
@@ -3471,6 +3493,8 @@ protected:
     Type m_type : 4;
     PseudoType m_pseudotype : 7;
     AttributeMatchType m_attributeMatch : 1;
+    // Set only on CSSCaseInsensitiveTagSelector instances.
+    bool m_tagCaseInsensitive : 1;
     AtomicString m_selectorText;
 };
 
@@ -3528,9 +3552,17 @@ protected:
 // e.g. `svg|*`).
 class CSSNamespacedTagSelector : public CSSSelector {
 public:
-    CSSNamespacedTagSelector(const QualifiedName& name)
+    // `lowercasedLocalName` is set by the parser only when the parsed local
+    // name contained ASCII uppercase letters: type selectors match HTML
+    // elements ASCII case-insensitively regardless of the namespace written
+    // in the selector (selectors-4 #type-selectors), and HTML elements'
+    // local names are the ASCII-lowercased spellings.
+    CSSNamespacedTagSelector(
+        const QualifiedName& name,
+        const AtomicString& lowercasedLocalName = AtomicString())
         : CSSSelector(CSSSelector::Type::NamespacedTag, name.localNameAtomic())
         , m_name(name)
+        , m_lowercasedLocalName(lowercasedLocalName)
     {
     }
 
@@ -3539,8 +3571,44 @@ public:
         return m_name;
     }
 
+    // Empty when the parsed local name had no ASCII uppercase letters.
+    const AtomicString& lowercasedLocalName() const
+    {
+        return m_lowercasedLocalName;
+    }
+
 protected:
     QualifiedName m_name;
+    AtomicString m_lowercasedLocalName;
+};
+
+// A type selector whose parsed tag name contained ASCII uppercase letters
+// (e.g. `DIV`). HTML matches type selectors against HTML elements ASCII
+// case-insensitively and against every other element (SVG, XML)
+// case-sensitively
+// (https://drafts.csswg.org/selectors-4/#type-selectors,
+// https://html.spec.whatwg.org/multipage/semantics-other.html#case-sensitivity-of-selectors),
+// so matching compares the ASCII-lowercased name kept here, while
+// serialization keeps the original text in m_selectorText. The parser creates
+// this only when lowercasing changes the name, so lowercase type selectors
+// keep the base 16-byte layout.
+class CSSCaseInsensitiveTagSelector : public CSSSelector {
+public:
+    CSSCaseInsensitiveTagSelector(const AtomicString& text,
+                                  const AtomicString& lowercasedText)
+        : CSSSelector(CSSSelector::Type::Tag, text)
+        , m_lowercasedText(lowercasedText)
+    {
+        m_tagCaseInsensitive = true;
+    }
+
+    const AtomicString& lowercasedText() const
+    {
+        return m_lowercasedText;
+    }
+
+protected:
+    AtomicString m_lowercasedText;
 };
 
 class CSSPseudoSelector : public CSSSelector {

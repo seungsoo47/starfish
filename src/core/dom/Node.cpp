@@ -42,6 +42,7 @@
 #include "core/dom/NodeList.h"
 #include "core/dom/SelectorQuery.h"
 #include "core/dom/ShadowRoot.h"
+#include "core/dom/HTMLSlotElement.h"
 #include "core/dom/Text.h"
 #include "core/layout/Frame.h"
 #include "core/layout/FrameBox.h"
@@ -300,6 +301,9 @@ static Node* convertNodesIntoNode(const GCVector<NodeOrDOMString>& nodes,
                                   Document* document)
 {
     size_t size = nodes.size();
+    if (size == 0) {
+        return nullptr;
+    }
     if (size == 1) {
         return nodeOrStringToNode(nodes[0], document);
     }
@@ -350,9 +354,15 @@ void Node::replaceWith(const GCVector<NodeOrDOMString>& nodes)
     Node* node = convertNodesIntoNode(nodes, document());
 
     if (parent == parentNode()) {
-        parent->replaceChild(node, this);
+        if (node) {
+            parent->replaceChild(node, this);
+        } else {
+            parent->removeChild(this);
+        }
     } else {
-        parent->insertBefore(node, viableNextSibling);
+        if (node) {
+            parent->insertBefore(node, viableNextSibling);
+        }
     }
 }
 
@@ -553,6 +563,27 @@ Optional<HTMLSlotElement*> Node::assignedSlotInternal() const
         // The native details slots are selected by role, not slot= names.
         return nd->asHTMLDetailsElement()->slotFor(const_cast<Node*>(this));
     }
+
+    // Manual slot assignment: "find a slot" returns the slot this slottable
+    // was manually assigned to (https://dom.spec.whatwg.org/#finding-a-slot
+    // with slotAssignment="manual"), regardless of its slot= attribute.
+    if (sr.value()->slotAssignmentEnum() == SlotAssignmentMode::Manual) {
+        auto iter =
+            starfish()->manualSlotAssignments().find(const_cast<Node*>(this));
+        if (iter != starfish()->manualSlotAssignments().end()) {
+            HTMLSlotElement* manualSlot = iter->second;
+            for (Node* p = manualSlot->parentNode(); p; p = p->parentNode()) {
+                if (p->isShadowRoot()) {
+                    if (p == sr.value()) {
+                        return manualSlot;
+                    }
+                    break;
+                }
+            }
+        }
+        return NullOption;
+    }
+
     String* slotName;
     if (isElement()) {
         slotName = asElement()->slot();
@@ -569,32 +600,20 @@ Optional<HTMLSlotElement*> Node::assignedSlotInternal() const
         return slot.value();
     }
 
-    // Manual slot assignment: "find a slot" returns the slot this slottable
-    // was manually assigned to (https://html.spec.whatwg.org/multipage/
-    // scripting.html#find-a-slot with slotAssignment="manual"), regardless
-    // of its slot= attribute. The slot only counts while it still hangs off
-    // this host's shadow tree; assignment bookkeeping in
-    // ShadowRoot::connectSlotWithSlottables() keeps the list to host children.
-    // Without this lookup a manually assigned node's flat-tree parent would
-    // resolve back to its DOM parent (the host), and nothing would ever
-    // descend into it to recalc style or build frames.
-    if (sr.value()->slotAssignmentEnum() == SlotAssignmentMode::Manual) {
-        auto iter = window()->starfish()->manualSlotAssignments().find(
-            const_cast<Node*>(this));
-        if (iter != window()->starfish()->manualSlotAssignments().end()) {
-            HTMLSlotElement* manualSlot = iter->second;
-            for (Node* p = manualSlot->parentNode(); p; p = p->parentNode()) {
-                if (p->isShadowRoot()) {
-                    if (p == sr.value()) {
-                        return manualSlot;
-                    }
-                    break;
-                }
-            }
-        }
-    }
-
     return NullOption;
+}
+
+Optional<HTMLSlotElement*> Node::findAssignedSlot()
+{
+    // https://dom.spec.whatwg.org/#dom-element-assignedslot
+    // "The assignedSlot getter steps are to return the result of finding a slot
+    // for this with the open flag set."
+    // An open flag restriction means: if slottable's parent's shadow root is
+    // not open, return null.
+    if (!parentElement() || !parentElement()->shadowRoot()) {
+        return nullptr;
+    }
+    return assignedSlotInternal();
 }
 
 Node* Node::renderingParentNode() const
@@ -935,23 +954,41 @@ unsigned long Node::childElementCount()
 void Node::prepend(const GCVector<NodeOrDOMString>& nodes)
 {
     Node* node = convertNodesIntoNode(nodes, document());
-    insertBefore(node, firstChild());
+    if (node) {
+        insertBefore(node, firstChild());
+    }
 }
 
 void Node::append(const GCVector<NodeOrDOMString>& nodes)
 {
     Node* node = convertNodesIntoNode(nodes, document());
-    appendChild(node);
+    if (node) {
+        appendChild(node);
+    }
 }
 
 // https://dom.spec.whatwg.org/#dom-parentnode-replacechildren
 void Node::replaceChildren(const GCVector<NodeOrDOMString>& nodes)
 {
+    if (!(isDocument() || isElement() || isDocumentFragment())) {
+        throw new DOMException(
+            executionContext(), DOMException::HIERARCHY_REQUEST_ERR,
+            "Parent is not a Document, DocumentFragment, or Element node.");
+    }
+
     Node* node = convertNodesIntoNode(nodes, document());
+    if (node) {
+        validatePreinsert(node, nullptr);
+    }
+
+    ChildListMutationObservationScope scope;
+    scope.startChildListMutationScope(this);
     while (Node* child = firstChild()) {
         removeChild(child);
     }
-    appendChild(node);
+    if (node) {
+        appendChild(node);
+    }
 }
 
 Node* Node::nearestParentElement()

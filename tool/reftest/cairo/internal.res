@@ -1101,6 +1101,7 @@ tests/assertion/custom-element-registry/definedselector.html
 tests/assertion/custom-element-registry/construction-stack.html
 tests/assertion/shadowdom/adopted_host_display.html
 tests/assertion/selector/is_where.html
+tests/assertion/selector/type-selector-case.html
 tests/assertion/selector/not_host_complex.html
 tests/assertion/selector/namespace_selector.html
 tests/assertion/selector/pseudo_element_chaining.html

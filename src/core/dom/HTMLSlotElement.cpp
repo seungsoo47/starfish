@@ -63,6 +63,20 @@ void HTMLSlotElement::clearAssignedNodes()
 // https://html.spec.whatwg.org/multipage/scripting.html#dom-slot-assign
 void HTMLSlotElement::assign(const GCVector<ElementOrText>& nodes)
 {
+    // A union member that is neither Element nor Text (null, Attr,
+    // ProcessingInstruction, ...) converts to the "None" member; per the
+    // WebIDL union conversion rules such an argument cannot be a slottable
+    // and throws TypeError before anything is reassigned.
+    // https://webidl.spec.whatwg.org/#es-union
+    for (auto& n : nodes) {
+        if (n.isNoneValue()) {
+            throw new DOMException(
+                executionContext(), DOMException::Code::SCRIPT_TYPE_ERR,
+                "Failed to execute 'assign' on 'HTMLSlotElement': The"
+                " provided value is not of type '(Element or Text)'.");
+        }
+    }
+
     auto& backRefs = starfish()->manualSlotAssignments();
 
     // Step 1: for each node in this slot's manual assignment list, clear its

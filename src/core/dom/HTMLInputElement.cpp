@@ -814,7 +814,9 @@ bool HTMLInputElement::handleRangeEvent(Event* event)
         }
         if (event->type()->equals("mousedown")) {
             m_rangeValueAtDragStart = valueAsNumber();
-            browsingContext->setPendingPointerCaptureTarget(this);
+            // UA-internal capture: retargets the drag without firing
+            // gotpointercapture/lostpointercapture at the page.
+            browsingContext->setUAPointerCaptureTarget(this);
             moveRangeThumbTo(mouseEvent->pageX(), mouseEvent->pageY());
             return true;
         }
@@ -841,7 +843,8 @@ bool HTMLInputElement::handleRangeEvent(Event* event)
             }
             Touch* touch = touchEvent->touches()->item(0);
             m_rangeValueAtDragStart = valueAsNumber();
-            browsingContext->setPendingPointerCaptureTarget(this);
+            // UA-internal capture, as in the mouse path above.
+            browsingContext->setUAPointerCaptureTarget(this);
             moveRangeThumbTo(touch->pageX(), touch->pageY());
             return true;
         }
@@ -873,7 +876,7 @@ void HTMLInputElement::endRangeDrag()
 {
     BrowsingContext* browsingContext = document()->browsingContext();
     if (browsingContext->pendingPointerCaptureTarget() == this) {
-        browsingContext->setPendingPointerCaptureTarget(nullptr);
+        browsingContext->releaseUAPointerCaptureTarget(this);
     }
     commitRangeValue(m_rangeValueAtDragStart);
 }

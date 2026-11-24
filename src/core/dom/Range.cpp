@@ -25,6 +25,8 @@
 #include "core/dom/DOMRect.h"
 #include "core/dom/DOMRectList.h"
 #include "core/dom/HTMLBodyElement.h"
+#include "core/dom/HTMLScriptElement.h"
+#include "core/dom/svg/SVGScriptElement.h"
 #include "core/dom/parser/HTMLParser.h"
 #include "core/dom/Range.h"
 #include "core/dom/Text.h"
@@ -590,7 +592,19 @@ DocumentFragment* Range::createContextualFragment(String* fragment)
     }
     // Return the result of invoking the fragment parsing algorithm with
     // element and the given markup.
-    return fragmentParsingAlgorithm(m_document, fragment, element);
+    // WHATWG HTML Range.createContextualFragment:
+    // "For each script of fragmentNode's script elements:
+    //  Set script's already started to false."
+    DocumentFragment* df =
+        fragmentParsingAlgorithm(m_document, fragment, element);
+    Traverse::traverse(df, [](Node* node) {
+        if (node->isHTMLScriptElement()) {
+            node->asHTMLScriptElement()->clearAlreadyStarted();
+        } else if (node->isSVGScriptElement()) {
+            node->asSVGScriptElement()->clearAlreadyStarted();
+        }
+    });
+    return df;
 }
 
 String* Range::toString()

@@ -239,11 +239,32 @@ public:
     // from "process pending pointer capture", never from those calls.
     Node* pendingPointerCaptureTarget()
     {
-        return m_pendingPointerCaptureTarget;
+        return m_isUAPointerCapture ? nullptr : m_pendingPointerCaptureTarget;
     }
     void setPendingPointerCaptureTarget(Node* n)
     {
         m_pendingPointerCaptureTarget = n;
+        m_isUAPointerCapture = false;
+    }
+    // UA-internal capture (the <input type=range> thumb drag) must not expose
+    // gotpointercapture/lostpointercapture to the page, which other engines
+    // never fire for it: settle the override and the pending override to the
+    // same target so "process pending pointer capture" has nothing to fire,
+    // and clear both together. It also must not be visible to
+    // hasPointerCapture() or cancellable via releasePointerCapture().
+    void setUAPointerCaptureTarget(Node* n)
+    {
+        m_pointerCaptureTarget = n;
+        m_pendingPointerCaptureTarget = n;
+        m_isUAPointerCapture = true;
+    }
+    void releaseUAPointerCaptureTarget(Node* n)
+    {
+        if (m_isUAPointerCapture && m_pendingPointerCaptureTarget == n) {
+            m_pointerCaptureTarget = nullptr;
+            m_pendingPointerCaptureTarget = nullptr;
+            m_isUAPointerCapture = false;
+        }
     }
     void processPendingPointerCapture(MouseData& data, String* pointerType);
     Node* imageAreaForImage(Frame* cb, float x, float y);
@@ -420,6 +441,7 @@ private:
     // releasePointerCapture() move. Settled into m_pointerCaptureTarget by
     // processPendingPointerCapture() before the next pointer event.
     Node* m_pendingPointerCaptureTarget;
+    bool m_isUAPointerCapture : 1;
 
     GCUnorderedSet<Node*> m_hoveredNodeSet;
     Node* m_hoveredNodeTarget;

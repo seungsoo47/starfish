@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <title>Type selectors match HTML elements ASCII case-insensitively</title>
+  <style>
+    /* https://drafts.csswg.org/selectors-4/#type-selectors and
+       https://html.spec.whatwg.org/multipage/semantics-other.html#case-sensitivity-of-selectors:
+       type selectors match HTML elements ASCII case-insensitively and every
+       other element (SVG, XML) case-sensitively. */
+    DIV { background-color: rgb(0, 128, 0); }
+    DIV p { color: rgb(0, 128, 0); }
+  </style>
+</head>
+
+<body>
+  <div id="d1">
+    <p id="p1">descendant</p>
+  </div>
+
+  <script>
+
+    // Starfish's test build provides testEnd()/console.assert and auto-runs the
+    // test. When that harness is absent (e.g. a regular browser like Chrome),
+    // shim a custom testEnd() that tallies console.assert results and reports
+    // the verdict to the console and the document title, so the same file runs
+    // and reports anywhere.
+    if (typeof testEnd !== 'function') {
+      var __pass = 0, __fail = 0;
+      var __nativeAssert = console.assert ? console.assert.bind(console) : function () {};
+      console.assert = function (cond, msg) {
+        if (cond) {
+          __pass++;
+        } else {
+          __fail++;
+          __nativeAssert(false, msg);
+        }
+      };
+      window.testEnd = function () {
+        var verdict = (__fail === 0 ? 'PASS' : 'FAIL') +
+          ' (' + __pass + ' passed, ' + __fail + ' failed)';
+        console.log('[type-selector-case] ' + verdict);
+        document.title = verdict;
+      };
+    }
+
+    var d1 = document.getElementById('d1');
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    var fo = document.createElementNS('http://www.w3.org/2000/svg',
+                                      'foreignObject');
+    svg.appendChild(fo);
+    document.body.appendChild(svg);
+
+    // An uppercase spelling matches HTML elements.
+    console.assert(document.querySelector('DIV') === d1,
+      'querySelector with an uppercase type selector should match the div');
+    console.assert(document.querySelectorAll('DIV').length === 1,
+      'querySelectorAll with DIV should match only the div element');
+    console.assert(d1.matches('DIV') && d1.matches('div'),
+      'the div element should match both spellings of its type selector');
+    console.assert(d1.closest('DIV') === d1,
+      'closest() with an uppercase type selector should find the div');
+    var color = getComputedStyle(d1).backgroundColor;
+    console.assert(color === 'rgb(0, 128, 0)',
+      'a stylesheet rule with an uppercase type selector should apply (got ' +
+          color + ')');
+    var p1 = document.getElementById('p1');
+    var pColor = getComputedStyle(p1).color;
+    console.assert(pColor === 'rgb(0, 128, 0)',
+      'a stylesheet rule with an uppercase descendant selector DIV p should apply (got ' +
+          pColor + ')');
+
+    // SVG elements stay case-sensitive.
+    console.assert(fo.matches('foreignObject'),
+      'the SVG element should match its exact-cased type selector');
+    console.assert(!fo.matches('FOREIGNOBJECT'),
+      'an uppercase spelling should not match an SVG element');
+    console.assert(!fo.matches('foreignobject'),
+      'a lowercased spelling should not match an SVG element');
+    console.assert(svg.querySelector('DIV') === null,
+      'an uppercase type selector should not match inside SVG');
+
+    testEnd();
+
+  </script>
+</body>
+
+</html>

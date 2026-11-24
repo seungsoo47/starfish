@@ -26,13 +26,18 @@
                  + ' pointerType=' + e.pointerType);
     });
     el.addEventListener('pointermove', (e) => {
-      __log.push('pointermove target=' + (e.target.id || 'document'));
+      __log.push('captured pointermove target=' + e.target.id);
       if (!released) {
         released = true;
         el.releasePointerCapture(e.pointerId);
         __log.push('hasPointerCapture after release = '
                    + el.hasPointerCapture(e.pointerId));
       }
+    });
+    // After the release settles, the move goes to the fresh hit-test target,
+    // so only this document-level listener (the event bubbles) sees it.
+    document.addEventListener('pointermove', (e) => {
+      __log.push('pointermove at ' + e.target.nodeName);
     });
     el.addEventListener('lostpointercapture', (e) => {
       __log.push('lostpointercapture bubbles=' + e.bubbles

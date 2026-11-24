@@ -1969,18 +1969,45 @@ void CSSParser::parseCompoundSelector(CSSSelectorList* selectorList)
         // Case-preserving: SVG tag names are case-sensitive.
         if (nsURI.hasValue()) {
             AtomicString localName = elementName.toAtomicString(starfish());
+            // Type selectors match HTML elements ASCII case-insensitively
+            // regardless of the written namespace
+            // (https://drafts.csswg.org/selectors-4/#type-selectors), so keep
+            // the lowercased local name for matching when the parsed one had
+            // uppercase letters.
+            AtomicString lowercasedLocalName =
+                elementName.toAttrAtomicString(starfish());
             QualifiedName qname =
                 explicitNamespace
                     ? QualifiedName(prefix.toAttrAtomicString(starfish()),
                                     nsURI.getValue(), localName)
                     : QualifiedName(nsURI.getValue(), localName);
-            selector = new CSSNamespacedTagSelector(qname);
+            selector = new CSSNamespacedTagSelector(
+                qname, lowercasedLocalName != localName ? lowercasedLocalName
+                                                        : AtomicString());
         } else {
-            selector = getSelector({ isStar ? CSSSelector::Type::Universal
-                                            : CSSSelector::Type::Tag,
-                                     CSSSelector::PseudoNone,
-                                     CSSSelector::CaseInsensitive,
-                                     elementName.toAtomicString(starfish()) });
+            AtomicString tagText = elementName.toAtomicString(starfish());
+            if (isStar) {
+                selector = getSelector(
+                    { CSSSelector::Type::Universal, CSSSelector::PseudoNone,
+                      CSSSelector::CaseInsensitive, tagText });
+            } else {
+                AtomicString lowercasedText =
+                    elementName.toAttrAtomicString(starfish());
+                if (lowercasedText != tagText) {
+                    // Type selectors match HTML elements ASCII
+                    // case-insensitively
+                    // (https://drafts.csswg.org/selectors-4/#type-selectors)
+                    // while SVG tag names stay case-sensitive: keep the
+                    // original text and match HTML elements by the lowercased
+                    // form.
+                    selector = new CSSCaseInsensitiveTagSelector(
+                        tagText, lowercasedText);
+                } else {
+                    selector = getSelector(
+                        { CSSSelector::Type::Tag, CSSSelector::PseudoNone,
+                          CSSSelector::CaseInsensitive, tagText });
+                }
+            }
         }
 
         selectorList->insert(selectorList->begin(),

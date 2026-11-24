@@ -134,6 +134,7 @@ BrowsingContext::BrowsingContext(WebView* webView, HTMLIFrameElement* source,
     , m_documentVersionWhenComputingActiveNodeSet(0)
     , m_pointerCaptureTarget(nullptr)
     , m_pendingPointerCaptureTarget(nullptr)
+    , m_isUAPointerCapture(false)
     , m_hoveredNodeTarget(nullptr)
     , m_documentVersionWhenComputingHoveredNodeSet(0)
     , m_focusedNode(nullptr)
@@ -673,6 +674,14 @@ void BrowsingContext::dispose()
     m_activeNodeTarget = nullptr;
     m_pointerCaptureTarget = nullptr;
     m_pendingPointerCaptureTarget = nullptr;
+    m_isUAPointerCapture = false;
+
+    // A navigation, iframe removal, or teardown drops this document here;
+    // manual slot assignment entries pinning its nodes or slots must not
+    // keep the whole document reachable until the instance dies.
+    if (document()) {
+        starfish()->purgeManualSlotAssignments(document());
+    }
     m_documentVersionWhenComputingActiveNodeSet = 0;
 
     m_hoveredNodeSet.clear();
@@ -1225,6 +1234,15 @@ void BrowsingContext::processPendingPointerCapture(MouseData& data,
     Node* overrideTarget = m_pointerCaptureTarget;
     Node* pendingTarget = m_pendingPointerCaptureTarget;
 
+    // Implicit release after node removal: a pending override whose target
+    // left the document is dropped here, and the override branch below fires
+    // lostpointercapture at the document.
+    // https://w3c.github.io/pointerevents/#implicit-release-after-node-removal
+    if (pendingTarget && !pendingTarget->isConnected()) {
+        m_pendingPointerCaptureTarget = nullptr;
+        pendingTarget = nullptr;
+    }
+
     if (overrideTarget && overrideTarget != pendingTarget) {
         // A capture target override that left the document can no longer
         // receive events: the spec fires lostpointercapture at the document.
@@ -1366,6 +1384,7 @@ void BrowsingContext::handleHover(MouseEventKind kind, Node* targetNode,
                         data);
                     e->setCancelable(false);
                     e->setBubbles(false);
+                    e->setComposed(false);
                     (*iter)->dispatchEventByUA(newElement, e, true);
                 }
             }
@@ -1401,6 +1420,7 @@ void BrowsingContext::handleHover(MouseEventKind kind, Node* targetNode,
                                              data);
                         e->setCancelable(false);
                         e->setBubbles(false);
+                        e->setComposed(false);
                         leaveTarget->dispatchEventByUA(oldElement, e, true);
                     }
                     leaveTarget = leaveTarget->parentElement();

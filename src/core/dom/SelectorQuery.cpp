@@ -550,9 +550,18 @@ void SelectorQuery::execute(Node& rootNode, std::vector<Element*>& output,
                                        output, shouldOnlyMatchFirstElement);
             return;
         case CSSSelector::Tag:
-            collectElementsByTagName(rootNode, firstSelector->selectorText(),
-                                     output, shouldOnlyMatchFirstElement);
-            return;
+            // An uppercase-name type selector also matches HTML elements by
+            // the ASCII-lowercased name
+            // (https://drafts.csswg.org/selectors-4/#type-selectors), so the
+            // exact-name collection fast path cannot be used; the full
+            // matching below applies the case-insensitive comparison.
+            if (!firstSelector->isCaseInsensitiveTagSelector()) {
+                collectElementsByTagName(rootNode,
+                                         firstSelector->selectorText(), output,
+                                         shouldOnlyMatchFirstElement);
+                return;
+            }
+            break;
         default:
             break; // If we need another fast path, add here.
         }

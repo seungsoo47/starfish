@@ -24,6 +24,9 @@
 #include "core/dom/Comment.h"
 #include "core/dom/Document.h"
 #include "core/dom/DocumentType.h"
+#include "core/dom/ProcessingInstruction.h"
+#include "core/dom/CDATASection.h"
+#include "core/dom/Text.h"
 
 #include <../third_party/rapidxml/rapidxml.hpp>
 #include <../third_party/rapidxml/rapidxml_print.hpp>
@@ -112,24 +115,21 @@ static bool hasSpecialChar(char* str, char* parentTagName)
     return false;
 }
 
-static rapidxml::xml_node<char>* createXMLNodeFromElement(
-    Node* e, rapidxml::xml_document<char>& xmlDocument)
+static rapidxml::xml_node<char>* createXMLNode(
+    Node* e, rapidxml::xml_document<char>& xmlDocument,
+    char* parentTagName = nullptr)
 {
-    UTF8StringDataNonGCStd utf8Data;
     if (e->isElement()) {
+        UTF8StringDataNonGCStd utf8Data;
         utf8Data = e->localName()->toUTF8NonGCString();
-    } else {
-        utf8Data = e->nodeName()->toUTF8NonGCString();
-    }
-    char* allocateName = xmlDocument.allocate_string(utf8Data.data());
-    rapidxml::node_type nodeType = rapidxml::node_type::node_element;
-    if (isSelfClosingTag(allocateName)) {
-        nodeType = rapidxml::node_type::node_element_self_close;
-    }
-    rapidxml::xml_node<char>* xmlNode =
-        xmlDocument.allocate_node(nodeType, allocateName);
+        char* allocateName = xmlDocument.allocate_string(utf8Data.data());
+        rapidxml::node_type nodeType = rapidxml::node_type::node_element;
+        if (isSelfClosingTag(allocateName)) {
+            nodeType = rapidxml::node_type::node_element_self_close;
+        }
+        rapidxml::xml_node<char>* xmlNode =
+            xmlDocument.allocate_node(nodeType, allocateName);
 
-    if (e->isElement()) {
         Element* ele = e->asElement();
         size_t attributeCount = ele->attributeCount();
         for (size_t i = 0; i < attributeCount; i++) {
@@ -147,79 +147,103 @@ static rapidxml::xml_node<char>* createXMLNodeFromElement(
                                                allocateCountValue);
             xmlNode->append_attribute(attr);
         }
-    }
 
-    Node* child = e->firstChild();
-
-    while (child) {
-        rapidxml::xml_node<char>* childXMLNode;
-        if (child->isElement()) {
-            childXMLNode =
-                createXMLNodeFromElement(child->asElement(), xmlDocument);
-        } else if (child->isComment()) {
-            auto utf8Data =
-                child->asCharacterData()->data()->toUTF8NonGCString();
-            char* allocateValue = xmlDocument.allocate_string(utf8Data.data());
-            childXMLNode = xmlDocument.allocate_node(
-                rapidxml::node_type::node_comment, "", allocateValue);
-        } else if (child->isCDATASection() && child->document()->typeIsXML()) {
-            // XML serialization keeps a CDATA section as one
-            // (https://w3c.github.io/DOM-Parsing/#xml-serializing-a-cdatasection-node);
-            // the HTML fragment serialization used for HTML documents treats
-            // it as a Text node and escapes it instead (falls through below).
-            auto utf8Data =
-                child->asCharacterData()->data()->toUTF8NonGCString();
-            char* allocateValue = xmlDocument.allocate_string(utf8Data.data());
-            childXMLNode = xmlDocument.allocate_node(
-                rapidxml::node_type::node_cdata, "", allocateValue);
-        } else if (child->isText()) {
-            auto utf8Data =
-                child->asCharacterData()->data()->toUTF8NonGCString();
-            char* allocateValue = xmlDocument.allocate_string(utf8Data.data());
-            if (hasSpecialChar(allocateValue, allocateName)) {
-                childXMLNode = xmlDocument.allocate_node(
-                    rapidxml::node_type::node_data_specialChar, "",
-                    allocateValue);
-            } else {
-                childXMLNode = xmlDocument.allocate_node(
-                    rapidxml::node_type::node_data, "", allocateValue);
+        Node* child = e->firstChild();
+        while (child) {
+            rapidxml::xml_node<char>* childXMLNode =
+                createXMLNode(child, xmlDocument, allocateName);
+            if (childXMLNode) {
+                xmlNode->append_node(childXMLNode);
             }
-        } else if (child->isDocumentType()) {
-            auto utf8Data =
-                child->asDocumentType()->nodeName()->toUTF8NonGCString();
-            char* allocateName = xmlDocument.allocate_string(utf8Data.data());
-            childXMLNode = xmlDocument.allocate_node(
-                rapidxml::node_type::node_doctype, allocateName);
-        } else {
-            STARFISH_RELEASE_ASSERT_SHOULD_NOT_BE_HERE();
+            child = child->nextSibling();
         }
 
-        xmlNode->append_node(childXMLNode);
-        child = child->nextSibling();
+        return xmlNode;
+    } else if (e->isComment()) {
+        auto utf8Data = e->asCharacterData()->data()->toUTF8NonGCString();
+        char* allocateValue = xmlDocument.allocate_string(utf8Data.data());
+        return xmlDocument.allocate_node(rapidxml::node_type::node_comment, "",
+                                         allocateValue);
+    } else if (e->isCDATASection() && e->document()->typeIsXML()) {
+        // XML serialization keeps a CDATA section as one
+        // (https://w3c.github.io/DOM-Parsing/#xml-serializing-a-cdatasection-node);
+        // the HTML fragment serialization used for HTML documents treats
+        // it as a Text node and escapes it instead (falls through below).
+        auto utf8Data = e->asCharacterData()->data()->toUTF8NonGCString();
+        char* allocateValue = xmlDocument.allocate_string(utf8Data.data());
+        return xmlDocument.allocate_node(rapidxml::node_type::node_cdata, "",
+                                         allocateValue);
+    } else if (e->isText()) {
+        auto utf8Data = e->asCharacterData()->data()->toUTF8NonGCString();
+        char* allocateValue = xmlDocument.allocate_string(utf8Data.data());
+        if (hasSpecialChar(allocateValue, parentTagName)) {
+            return xmlDocument.allocate_node(
+                rapidxml::node_type::node_data_specialChar, "", allocateValue);
+        } else {
+            return xmlDocument.allocate_node(rapidxml::node_type::node_data, "",
+                                             allocateValue);
+        }
+    } else if (e->isDocumentType()) {
+        auto* dt = e->asDocumentType();
+        std::string val = dt->name()->toUTF8NonGCString().data();
+        String* pub = dt->publicId();
+        String* sys = dt->systemId();
+        if (pub && pub->length() > 0 && sys && sys->length() > 0) {
+            val += " PUBLIC \"" + std::string(pub->toUTF8NonGCString().data()) +
+                   "\" \"" + std::string(sys->toUTF8NonGCString().data()) +
+                   "\"";
+        } else if (pub && pub->length() > 0) {
+            val += " PUBLIC \"" + std::string(pub->toUTF8NonGCString().data()) +
+                   "\"";
+        } else if (sys && sys->length() > 0) {
+            val += " SYSTEM \"" + std::string(sys->toUTF8NonGCString().data()) +
+                   "\"";
+        }
+        char* allocateValue = xmlDocument.allocate_string(val.c_str());
+        return xmlDocument.allocate_node(rapidxml::node_type::node_doctype, "",
+                                         allocateValue);
+    } else if (e->isProcessingInstruction()) {
+        auto* pi = e->asProcessingInstruction();
+        auto targetData = pi->target()->toUTF8NonGCString();
+        auto valData = pi->data()->toUTF8NonGCString();
+        char* allocateTarget = xmlDocument.allocate_string(targetData.data());
+        char* allocateValue = xmlDocument.allocate_string(valData.data());
+        return xmlDocument.allocate_node(rapidxml::node_type::node_pi,
+                                         allocateTarget, allocateValue);
     }
 
-    return xmlNode;
+    return nullptr;
 }
 
 String* XMLSerializer::serializeToXML(Node* e, bool includeSelf)
 {
     rapidxml::xml_document<char> doc;
-    rapidxml::xml_node<char>* root = createXMLNodeFromElement(e, doc);
-
     std::string s;
     int xmlFlag = rapidxml::print_no_expand_quot |
                   rapidxml::print_no_expand_lt_gt |
                   rapidxml::print_no_expand_amp | rapidxml::print_no_indenting |
                   rapidxml::print_care_script_style;
-    if (!includeSelf) {
-        rapidxml::xml_node<char>* c = root->first_node();
+
+    if (e->isDocument() || e->isDocumentFragment() || !includeSelf) {
+        Node* child = e->firstChild();
+        while (child) {
+            rapidxml::xml_node<char>* c = createXMLNode(child, doc);
+            if (c) {
+                doc.append_node(c);
+            }
+            child = child->nextSibling();
+        }
+        rapidxml::xml_node<char>* c = doc.first_node();
         while (c) {
             rapidxml::print<std::back_insert_iterator<std::basic_string<char>>,
                             char>(std::back_inserter(s), *c, xmlFlag);
             c = c->next_sibling();
         }
     } else {
-        rapidxml::print(std::back_inserter(s), *root, xmlFlag);
+        rapidxml::xml_node<char>* root = createXMLNode(e, doc);
+        if (root) {
+            rapidxml::print(std::back_inserter(s), *root, xmlFlag);
+        }
     }
 
     return String::fromUTF8(s.data(), s.length());
