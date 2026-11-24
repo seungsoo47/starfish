@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>XMLSerializer, Range.createContextualFragment, and ParentNode.replaceChildren</title>
+</head>
+<body>
+  <div id="host"></div>
+  <script>
+    // 1. XMLSerializer basic & Google Maps sanitization pattern
+    const serializer = new XMLSerializer();
+    const htmlDoc = document.implementation.createHTMLDocument('');
+    const range = htmlDoc.createRange();
+    range.selectNode(htmlDoc.body);
+    const frag = range.createContextualFragment('<span>Map &amp; <b>Data</b></span>');
+    htmlDoc.body.appendChild(frag);
+    const serialized = serializer.serializeToString(htmlDoc.body);
+    console.assert(
+      serialized === '<body xmlns="http://www.w3.org/1999/xhtml"><span>Map &amp; <b>Data</b></span></body>',
+      'HTML body XML serialization mismatch: ' + serialized
+    );
+
+    // Text, comment, CDATA, DocumentFragment, Attr, ProcessingInstruction, DocumentType
+    console.assert(serializer.serializeToString(document.createTextNode('a < b & c > d')) === 'a &lt; b &amp; c &gt; d', 'text escaping');
+    console.assert(serializer.serializeToString(document.createComment('note')) === '<!--note-->', 'comment serialization');
+    console.assert(serializer.serializeToString(document.createAttribute('foo')) === '', 'attr serializes to empty string');
+    const df = document.createDocumentFragment();
+    df.append(document.createElement('div'), document.createElement('br'));
+    console.assert(
+      serializer.serializeToString(df) === '<div xmlns="http://www.w3.org/1999/xhtml"></div><br xmlns="http://www.w3.org/1999/xhtml" />',
+      'DocumentFragment serialization: ' + serializer.serializeToString(df)
+    );
+
+    // 2. Range.createContextualFragment script execution when inserted
+    window.__ranContextualScript = false;
+    const r2 = document.createRange();
+    r2.selectNodeContents(document.body);
+    const scriptFrag = r2.createContextualFragment('<script>window.__ranContextualScript = true;</' + 'script>');
+    console.assert(window.__ranContextualScript === false, 'script must not run before insertion');
+    document.body.appendChild(scriptFrag);
+    console.assert(window.__ranContextualScript === true, 'script must run upon insertion');
+
+    // 3. ParentNode.replaceChildren
+    const host = document.getElementById('host');
+    const a = document.createElement('span');
+    a.id = 'a';
+    const b = document.createElement('span');
+    b.id = 'b';
+    host.append(a, b);
+    host.replaceChildren('hello', b);
+    console.assert(host.childNodes.length === 2, 'replaceChildren count');
+    console.assert(host.childNodes[0].nodeType === Node.TEXT_NODE && host.childNodes[0].data === 'hello', 'first child is text');
+    console.assert(host.childNodes[1] === b, 'second child is b');
+
+    // Pre-insertion validation must throw without modifying existing children
+    let threw = false;
+    try {
+      b.replaceChildren(host);
+    } catch (e) {
+      threw = (e.name === 'HierarchyRequestError');
+    }
+    console.assert(threw, 'replaceChildren with ancestor must throw HierarchyRequestError');
+    console.assert(host.childNodes.length === 2, 'failed replaceChildren must leave children intact');
+
+    host.replaceChildren();
+    console.assert(host.childNodes.length === 0, 'replaceChildren() empties parent');
+
+    if (typeof testEnd === 'function') {
+      testEnd();
+    }
+  </script>
+</body>
+</html>
