@@ -19,6 +19,8 @@
 
 #include "StarfishConfig.h"
 #include "Starfish.h"
+#include "core/dom/HTMLSlotElement.h"
+#include "core/dom/Node.h"
 #include "core/modules/threading/Locker.h"
 #include "core/modules/threading/Thread.h"
 #include "core/modules/threading/ThreadPool.h"
@@ -119,6 +121,7 @@ void* Starfish::operator new(size_t size)
         markHashTable(desc, GC_WORD_OFFSET(Starfish, m_rootMap));
         markHashTable(desc, GC_WORD_OFFSET(Starfish, m_atomicStringMap));
         markHashTable(desc, GC_WORD_OFFSET(Starfish, m_caseInsensitiveAttrSet));
+        GC_set_bit(desc, GC_WORD_OFFSET(Starfish, m_manualSlotAssignments));
 
 #if defined(STARFISH_ENABLE_HTTPCACHE)
         GC_set_bit(desc, GC_WORD_OFFSET(Starfish, m_httpCache));
@@ -131,6 +134,42 @@ void* Starfish::operator new(size_t size)
         typeInited = true;
     }
     return GC_MALLOC_EXPLICITLY_TYPED(size, descr);
+}
+
+GCUnorderedMap<Node*, HTMLSlotElement*>& Starfish::manualSlotAssignments()
+{
+    if (!m_manualSlotAssignments) {
+        m_manualSlotAssignments = new GCUnorderedMap<Node*, HTMLSlotElement*>();
+    }
+    return *m_manualSlotAssignments;
+}
+
+HTMLSlotElement* Starfish::findManualSlotAssignment(Node* node) const
+{
+    if (!m_manualSlotAssignments) {
+        return nullptr;
+    }
+    auto iter = m_manualSlotAssignments->find(node);
+    return iter != m_manualSlotAssignments->end() ? iter->second : nullptr;
+}
+
+void Starfish::purgeManualSlotAssignments(Document* document)
+{
+    if (!m_manualSlotAssignments) {
+        return;
+    }
+    auto& assignments = *m_manualSlotAssignments;
+    for (auto iter = assignments.begin(); iter != assignments.end();) {
+        if (iter->first->ownerDocument() == document ||
+            iter->second->ownerDocument() == document) {
+            iter = assignments.erase(iter);
+        } else {
+            ++iter;
+        }
+    }
+    if (assignments.empty()) {
+        m_manualSlotAssignments = nullptr;
+    }
 }
 
 void Starfish::destroy()

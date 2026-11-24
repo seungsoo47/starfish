@@ -309,6 +309,8 @@ public:
 
     Node* getRootNode(GetRootNodeOptions options);
 
+    Optional<HTMLSlotElement*> findAssignedSlot();
+
     Node* renderingParentNode() const;
 
     // The nearest rendering ancestor that generates a box, i.e. the node whose

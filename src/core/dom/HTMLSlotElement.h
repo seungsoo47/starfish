@@ -25,6 +25,7 @@
 namespace Starfish {
 
 class ShadowRoot;
+class ElementOrText;
 
 struct AssignedNodesOptions {
     AssignedNodesOptions()
@@ -97,6 +98,9 @@ public:
     // shadow-tree slot-assignment paths that rebuild or detach assignments.
     void clearAssignedNodes();
 
+    // https://html.spec.whatwg.org/multipage/scripting.html#dom-slot-assign
+    void assign(const GCVector<ElementOrText>& nodes);
+
     GCVector<Node*> assignedNodes(
         Optional<AssignedNodesOptions> options = nullptr);
     GCVector<Element*> assignedElements(
@@ -117,9 +121,15 @@ private:
     {
         HTMLElement::fillGCDescriptor(desc);
         GC_set_bit(desc, GC_WORD_OFFSET(HTMLSlotElement, m_assignedNodes));
+        GC_set_bit(desc,
+                   GC_WORD_OFFSET(HTMLSlotElement, m_manuallyAssignedNodes));
     }
 
     GCVector<Node*> m_assignedNodes;
+
+    // Slottables given to assign(), in the order last assigned. Preserved if
+    // the slot leaves its shadow tree so re-insertion restores assignment.
+    GCVector<Node*> m_manuallyAssignedNodes;
 };
 } // namespace Starfish
 

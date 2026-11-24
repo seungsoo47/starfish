@@ -31,6 +31,9 @@ class LineBreakIteratorPool;
 class Mutex;
 class WorkerManager;
 class Profiler;
+class Node;
+class HTMLSlotElement;
+class Document;
 
 #if defined(STARFISH_ENABLE_HTTPCACHE)
 class HTTPCache;
@@ -100,6 +103,14 @@ public:
     {
         return m_webViewInstanceCount;
     }
+
+    // Back references for HTMLSlotElement.assign() manual slot assignment
+    // (https://html.spec.whatwg.org/multipage/scripting.html#dom-slot-assign).
+    // Stored lazily here rather than as a per-Node field so pages that never
+    // call assign() pay no memory overhead.
+    GCUnorderedMap<Node*, HTMLSlotElement*>& manualSlotAssignments();
+    HTMLSlotElement* findManualSlotAssignment(Node* node) const;
+    void purgeManualSlotAssignments(Document* document);
 
     unsigned char gcFrequency()
     {
@@ -174,6 +185,7 @@ protected:
 #endif // STARFISH_ENABLE_SERVICE_WORKER
 
     size_t m_webViewInstanceCount = 0;
+    GCUnorderedMap<Node*, HTMLSlotElement*>* m_manualSlotAssignments = nullptr;
     unsigned char m_gcFrequency = BDWGC_FREE_SPACE_DIVISOR;
     std::string m_backend;
     StarfishRendererType m_rendererType = StarfishRendererType::kOpenGL;

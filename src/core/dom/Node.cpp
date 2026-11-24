@@ -553,6 +553,26 @@ Optional<HTMLSlotElement*> Node::assignedSlotInternal() const
         // The native details slots are selected by role, not slot= names.
         return nd->asHTMLDetailsElement()->slotFor(const_cast<Node*>(this));
     }
+
+    // Manual slot assignment: "find a slot" returns the manually assigned
+    // slot if it resides in this host's shadow tree
+    // (https://dom.spec.whatwg.org/#finding-a-slot).
+    if (sr.value()->slotAssignmentEnum() == SlotAssignmentMode::Manual) {
+        HTMLSlotElement* manualSlot =
+            starfish()->findManualSlotAssignment(const_cast<Node*>(this));
+        if (manualSlot) {
+            for (Node* p = manualSlot->parentNode(); p; p = p->parentNode()) {
+                if (p->isShadowRoot()) {
+                    if (p == sr.value()) {
+                        return manualSlot;
+                    }
+                    break;
+                }
+            }
+        }
+        return NullOption;
+    }
+
     String* slotName;
     if (isElement()) {
         slotName = asElement()->slot();
@@ -569,6 +589,17 @@ Optional<HTMLSlotElement*> Node::assignedSlotInternal() const
         return slot.value();
     }
     return NullOption;
+}
+
+Optional<HTMLSlotElement*> Node::findAssignedSlot()
+{
+    // https://dom.spec.whatwg.org/#dom-slotable-assignedslot
+    // "find a slot" with the open flag set: return null if the shadow root is
+    // not open (shadowRoot() returns null for closed shadow roots).
+    if (!parentElement() || !parentElement()->shadowRoot()) {
+        return nullptr;
+    }
+    return assignedSlotInternal();
 }
 
 Node* Node::renderingParentNode() const

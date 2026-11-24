@@ -671,6 +671,9 @@ void BrowsingContext::dispose()
     m_activeNodeSet.clear();
     m_activeNodeTarget = nullptr;
     m_pointerCaptureTarget = nullptr;
+    if (document()) {
+        starfish()->purgeManualSlotAssignments(document());
+    }
     m_documentVersionWhenComputingActiveNodeSet = 0;
 
     m_hoveredNodeSet.clear();

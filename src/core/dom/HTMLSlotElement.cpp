@@ -19,9 +19,12 @@
 
 #include "StarfishConfig.h"
 #include "Starfish.h"
+#include "binding/generated/ElementOrTextUnion.h"
+#include "core/dom/DOMException.h"
 #include "core/dom/Document.h"
 #include "core/dom/HTMLSlotElement.h"
 #include "core/dom/ShadowRoot.h"
+#include "core/dom/Text.h"
 
 namespace Starfish {
 
@@ -55,6 +58,82 @@ void HTMLSlotElement::clearAssignedNodes()
         n->setIsSlotted(false);
     }
     m_assignedNodes.clear();
+}
+
+// https://html.spec.whatwg.org/multipage/scripting.html#dom-slot-assign
+void HTMLSlotElement::assign(const GCVector<ElementOrText>& nodes)
+{
+    // A union member that is neither Element nor Text (null, Attr, etc.)
+    // converts to the "None" member; per WebIDL union conversion rules, throw
+    // TypeError before mutating any slot state.
+    // https://webidl.spec.whatwg.org/#es-union
+    for (auto& n : nodes) {
+        if (n.isNoneValue()) {
+            throw new DOMException(
+                executionContext(), DOMException::Code::SCRIPT_TYPE_ERR,
+                "Failed to execute 'assign' on 'HTMLSlotElement': The"
+                " provided value is not of type '(Element or Text)'.");
+        }
+    }
+
+    auto& backRefs = starfish()->manualSlotAssignments();
+
+    // Step 1: clear back references for this slot's previous manual nodes.
+    for (auto* old : m_manuallyAssignedNodes) {
+        backRefs.erase(old);
+    }
+
+    // Step 2: deduplicate nodes, keeping the first occurrence.
+    GCVector<Node*> deduped;
+    for (auto& n : nodes) {
+        Node* slottable = n.isElementValue()
+                              ? static_cast<Node*>(n.getElementValue())
+                              : static_cast<Node*>(n.getTextValue());
+        bool seen = false;
+        for (auto* d : deduped) {
+            if (d == slottable) {
+                seen = true;
+                break;
+            }
+        }
+        if (!seen) {
+            deduped.push_back(slottable);
+        }
+    }
+
+    // Step 3: remove each node from any previous manual slot and update its
+    // back reference to this slot.
+    for (auto* nd : deduped) {
+        auto iter = backRefs.find(nd);
+        if (iter != backRefs.end()) {
+            HTMLSlotElement* prevSlot = iter->second;
+            if (prevSlot && prevSlot != this) {
+                GCVector<Node*>& list = prevSlot->m_manuallyAssignedNodes;
+                for (size_t i = 0; i < list.size(); i++) {
+                    if (list[i] == nd) {
+                        list.erase(list.begin() + i);
+                        break;
+                    }
+                }
+            }
+            backRefs.erase(iter);
+        }
+        backRefs.insert(std::make_pair(nd, this));
+    }
+
+    // Step 4: replace this slot's manual assignment list.
+    m_manuallyAssignedNodes = deduped;
+
+    // Step 5: if this slot's root is a shadow root, run "assign slottables for
+    // a tree".
+    Node* nd = parentNode();
+    while (nd) {
+        if (nd->isShadowRoot()) {
+            nd->asShadowRoot()->connectSlotWithSlottables();
+            break;
+        }
+        nd = nd->parentNode();
+    }
 }
 
 void HTMLSlotElement::didAttributeChanged(QualifiedName name,

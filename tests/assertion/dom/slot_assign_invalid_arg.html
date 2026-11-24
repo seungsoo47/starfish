@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>HTMLSlotElement.assign() rejects non-slottable arguments with TypeError</title>
+  <link rel="help" href="https://html.spec.whatwg.org/multipage/scripting.html#dom-slot-assign">
+</head>
+<body>
+  <div id="host"><span id="child">hello</span></div>
+  <script>
+    const host = document.getElementById('host');
+    const child = document.getElementById('child');
+    const root = host.attachShadow({ mode: 'open', slotAssignment: 'manual' });
+    const slot = document.createElement('slot');
+    root.appendChild(slot);
+
+    slot.assign(child);
+    console.assert(slot.assignedNodes().length === 1 && slot.assignedNodes()[0] === child,
+      'initial manual assignment works');
+    console.assert(child.assignedSlot === slot, 'assignedSlot reflects manual assignment');
+
+    for (const invalid of [null, undefined, 42, 'text', {}, document.createComment('c')]) {
+      let errName = 'none';
+      try {
+        slot.assign(child, invalid);
+      } catch (e) {
+        errName = e.name;
+      }
+      console.assert(errName === 'TypeError',
+        'assign() with non-slottable argument must throw TypeError, got: ' + errName);
+      console.assert(slot.assignedNodes().length === 1 && slot.assignedNodes()[0] === child,
+        'failed assign() must not mutate existing assignment');
+    }
+
+    // Closed shadow root hides assignedSlot even with manual assignment.
+    const closedHost = document.createElement('div');
+    const closedChild = document.createElement('span');
+    closedHost.appendChild(closedChild);
+    document.body.appendChild(closedHost);
+    const closedRoot = closedHost.attachShadow({ mode: 'closed', slotAssignment: 'manual' });
+    const closedSlot = document.createElement('slot');
+    closedRoot.appendChild(closedSlot);
+    closedSlot.assign(closedChild);
+    console.assert(closedSlot.assignedNodes()[0] === closedChild, 'closed manual slot assigns node');
+    console.assert(closedChild.assignedSlot === null, 'assignedSlot must be null for closed shadow root');
+
+    if (typeof testEnd === 'function') {
+      testEnd();
+    }
+  </script>
+</body>
+</html>

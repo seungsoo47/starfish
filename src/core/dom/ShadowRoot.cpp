@@ -133,9 +133,9 @@ void ShadowRoot::updateSlotElements(bool shouldConnectSlotWithSlottables)
                 // name=/slot-set-change path.
             }
         });
-    } else {
-        STARFISH_UNIMPLEMENTED("SlotAssignmentMode::Manual");
     }
+    // Manual assignment keeps no name map: connectSlotWithSlottables()
+    // distributes host children from each slot's manual assignment list.
 
     if (shouldConnectSlotWithSlottables) {
         connectSlotWithSlottables();
@@ -187,39 +187,52 @@ void ShadowRoot::connectSlotWithSlottables()
         slot->clearAssignedNodes();
     }
 
-    // Traverse host children and assign to appropriate slots
-    Node* node = host()->firstChild();
-    bool detailsSlots = host()->isHTMLDetailsElement();
-    Optional<Element*> detailsSummary;
-    if (detailsSlots) {
-        detailsSummary = host()->asHTMLDetailsElement()->firstSummary();
-    }
-    while (node != nullptr) {
-        if (detailsSlots && (node->isElement() || node->isText())) {
-            host()
-                ->asHTMLDetailsElement()
-                ->slotFor(node, detailsSummary)
-                ->m_assignedNodes.push_back(node);
-            node->setIsSlotted(true);
-        } else if (node->isElement()) {
-            auto slotName = node->asElement()->slot();
-            // Named slot: element has slot attribute
-            // Default slot: element has no slot attribute
-            auto iter = m_namedSlotElements.find(
-                slotName->length() ? slotName : String::emptyString);
-            if (iter != m_namedSlotElements.end()) {
-                iter->second->m_assignedNodes.push_back(node);
-                node->setIsSlotted(true);
-            }
-        } else if (node->isText()) {
-            // Text nodes always assigned to default slot
-            auto iter = m_namedSlotElements.find(String::emptyString);
-            if (iter != m_namedSlotElements.end()) {
-                iter->second->m_assignedNodes.push_back(node);
-                node->setIsSlotted(true);
+    if (slotAssignmentEnum() == SlotAssignmentMode::Manual) {
+        // https://html.spec.whatwg.org/multipage/scripting.html#dom-slot-assign
+        // Assign only manually assigned slottables that are children of host.
+        for (auto* slot : slots) {
+            for (Node* node : slot->m_manuallyAssignedNodes) {
+                if (node->parentNode() == host()) {
+                    slot->m_assignedNodes.push_back(node);
+                    node->setIsSlotted(true);
+                }
             }
         }
-        node = node->nextSibling();
+    } else {
+        // Traverse host children and assign to appropriate slots
+        Node* node = host()->firstChild();
+        bool detailsSlots = host()->isHTMLDetailsElement();
+        Optional<Element*> detailsSummary;
+        if (detailsSlots) {
+            detailsSummary = host()->asHTMLDetailsElement()->firstSummary();
+        }
+        while (node != nullptr) {
+            if (detailsSlots && (node->isElement() || node->isText())) {
+                host()
+                    ->asHTMLDetailsElement()
+                    ->slotFor(node, detailsSummary)
+                    ->m_assignedNodes.push_back(node);
+                node->setIsSlotted(true);
+            } else if (node->isElement()) {
+                auto slotName = node->asElement()->slot();
+                // Named slot: element has slot attribute
+                // Default slot: element has no slot attribute
+                auto iter = m_namedSlotElements.find(
+                    slotName->length() ? slotName : String::emptyString);
+                if (iter != m_namedSlotElements.end()) {
+                    iter->second->m_assignedNodes.push_back(node);
+                    node->setIsSlotted(true);
+                }
+            } else if (node->isText()) {
+                // Text nodes always assigned to default slot
+                auto iter = m_namedSlotElements.find(String::emptyString);
+                if (iter != m_namedSlotElements.end()) {
+                    iter->second->m_assignedNodes.push_back(node);
+                    node->setIsSlotted(true);
+                }
+            }
+            node = node->nextSibling();
+        }
     }
 
     auto contains = [](const GCVector<Node*>& nodes, Node* node) -> bool {
