@@ -1479,6 +1479,10 @@
       "expected": "fail",
       "category": "timeout"
     },
+    "input/mouse-buttons-mask.js": {
+      "expected": "pass",
+      "suite": "internal"
+    },
     "inspector/worker-script-loaded.js": {
       "expected": "fail",
       "category": "timeout"

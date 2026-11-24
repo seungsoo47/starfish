@@ -1,0 +1,6 @@
+Tests CDP Input.dispatchMouseEvent buttons bitmask handling
+mousemove button=0 buttons=1
+mousedown button=0 buttons=0
+mousedown button=2 buttons=3
+mouseup button=0 buttons=2
+mousemove button=0 buttons=1

@@ -101,27 +101,44 @@ void InputDomain::processMessage(CDPCommand& cmd, const std::string& method)
         double y = paramNumber(cmd, "y", 0);
         std::string button = paramString(cmd, "button");
         int clickCount = (int)paramNumber(cmd, "clickCount", 0);
+        // CDP Input.dispatchMouseEvent "buttons" is a bitmask of currently
+        // pressed buttons (sent e.g. on mouseMoved during a drag when "button"
+        // is absent). Only fall back to "button" when "buttons" is omitted,
+        // and mask to the values represented by MouseButtonsValue (bits 0..2).
+        bool hasButtons = cmd.params() && cmd.params()->HasMember("buttons") &&
+                          (*cmd.params())["buttons"].IsNumber();
+        const int validButtonsMask = MouseButtonsValue::LeftButtonDown |
+                                     MouseButtonsValue::RightButtonDown |
+                                     MouseButtonsValue::MiddleButtonDown;
+        MouseButtonsValue explicitButtons = MouseButtonsValue::NoButtonDown;
+        if (hasButtons) {
+            int raw = (int)(*cmd.params())["buttons"].GetDouble();
+            explicitButtons = (MouseButtonsValue)(raw & validButtonsMask);
+        }
+        MouseButtonsValue mask =
+            hasButtons ? explicitButtons : cdpButtonsMask(button);
 
         if (type == "mousePressed") {
             wv->dispatchMouseEvent(MouseEventKind::MouseEventDown,
-                                   MouseData(cdpButton(button),
-                                             cdpButtonsMask(button), x, y,
+                                   MouseData(cdpButton(button), mask, x, y,
                                              clickCount > 0 ? clickCount : 1));
             cmd.sendResultEmpty();
             return;
         }
         if (type == "mouseReleased") {
-            wv->dispatchMouseEvent(
-                MouseEventKind::MouseEventUp,
-                MouseData(cdpButton(button), MouseButtonsValue::NoButtonDown, x,
-                          y, clickCount > 0 ? clickCount : 1));
+            MouseButtonsValue releaseMask =
+                hasButtons ? explicitButtons : MouseButtonsValue::NoButtonDown;
+            wv->dispatchMouseEvent(MouseEventKind::MouseEventUp,
+                                   MouseData(cdpButton(button), releaseMask, x,
+                                             y,
+                                             clickCount > 0 ? clickCount : 1));
             cmd.sendResultEmpty();
             return;
         }
         if (type == "mouseMoved") {
-            wv->dispatchMouseEvent(MouseEventKind::MouseEventMove,
-                                   MouseData(MouseButtonValue::NoButton,
-                                             cdpButtonsMask(button), x, y, 0));
+            wv->dispatchMouseEvent(
+                MouseEventKind::MouseEventMove,
+                MouseData(MouseButtonValue::NoButton, mask, x, y, 0));
             cmd.sendResultEmpty();
             return;
         }
